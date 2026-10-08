@@ -8,6 +8,8 @@ from __future__ import annotations
 import dataclasses
 from typing import TYPE_CHECKING
 
+from stagr.core.enums import StageGate, StageKind
+
 if TYPE_CHECKING:
     from stagr.core.models import ExecutionPlan, NormalizedStage
 
@@ -60,12 +62,15 @@ def _build_minimal_normalized_stage():
 class _StubBackendRenderer:
     """Minimal BackendRenderer implementation for conformance testing.
 
-    Satisfies the Protocol with the smallest possible boilerplate: two string
-    attributes and a render() method that returns a fixed ExecutionPlan.
+    Satisfies the Protocol with the smallest possible boilerplate: the identity
+    attributes, the supported stage kinds and a render() method that returns a
+    fixed ExecutionPlan.
     """
 
     provider: str = "anthropic"
     backend: str = "claude"
+    supported_stage_kinds = frozenset({StageKind.REVIEW})
+    supported_gates = frozenset({StageGate.BLOCKING})
 
     def render(self, stage: "NormalizedStage") -> "ExecutionPlan":
         return _build_minimal_execution_plan()

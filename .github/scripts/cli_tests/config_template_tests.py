@@ -80,3 +80,173 @@ CONFIG_TEMPLATE_TESTS = (
     test_every_optional_block_uncommented_still_validates,
     test_init_writes_the_template_and_profile_switch_keeps_it,
 )
+
+
+DEMO_CONFIG = (
+    "version: 2\nprofile: minimal\nplatform:\n  type: github\n  publisher:\n    app_id: 5239405\n"
+    "remediation:\n  provider: anthropic\n"
+)
+
+
+def test_init_force_regenerates_keeping_profile_and_app_id() -> None:
+    with starter_project(DEMO_CONFIG) as project_root:
+        exit_code, stdout, stderr = run_cli(["init", "--force", "--root", str(project_root)])
+        regenerated_text = (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8")
+        check(
+            exit_code == 0 and regenerated_text == build_config_template("minimal", PUBLISHER_APP_ID),
+            f"init --force: regenerates the template with the existing profile and App ID ({stderr.strip()})",
+        )
+        check(
+            "regenerated" in stdout and "now commented out in the template: remediation" in stdout,
+            "init --force: names every active setting it turned off",
+        )
+
+
+def test_init_without_force_still_refuses_and_points_to_force() -> None:
+    with starter_project(DEMO_CONFIG) as project_root:
+        exit_code, _, stderr = run_cli(["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID])
+        kept_text = (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8")
+        check(
+            exit_code == 1 and "stagr init --force" in stderr and kept_text == DEMO_CONFIG,
+            "init: an existing config is kept and the error points to --force",
+        )
+
+
+def test_init_force_flags_override_the_existing_values() -> None:
+    with starter_project(DEMO_CONFIG) as project_root:
+        exit_code, _, _ = run_cli(["init", "--force", "--root", str(project_root), "--profile", "standard", "--app-id", "42"])
+        check(
+            exit_code == 0
+            and (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8") == build_config_template("standard", "42"),
+            "init --force: --profile and --app-id win over the existing config",
+        )
+
+
+def test_init_force_refuses_a_custom_config_without_a_profile_flag() -> None:
+    custom_config = DEMO_CONFIG.replace("profile: minimal", "profile: custom") + (
+        "stages:\n  - id: review\n    type: review\n    provider: openai\n    gate: blocking\n"
+    )
+    with starter_project(custom_config) as project_root:
+        exit_code, _, stderr = run_cli(["init", "--force", "--root", str(project_root)])
+        kept_text = (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8")
+        check(
+            exit_code == 1 and "pass --profile" in stderr and kept_text == custom_config,
+            "init --force: a custom config is kept unless --profile names a starter profile",
+        )
+
+
+def _run_init_force_interrupted_by(failure: BaseException, original_bytes: bytes) -> tuple[int, bytes]:
+    """Run `init --force` on a config holding ``original_bytes`` with the plan check raising ``failure``."""
+    from stagr.cli import init_command
+
+    def raise_failure(_project_root):
+        raise failure
+
+    original_validate = init_command.validate_and_render
+    init_command.validate_and_render = raise_failure
+    try:
+        with starter_project("") as project_root:
+            (project_root / CONFIG_FILE_PATH).write_bytes(original_bytes)
+            exit_code, _, _ = run_cli(["init", "--force", "--root", str(project_root)])
+            return exit_code, (project_root / CONFIG_FILE_PATH).read_bytes()
+    finally:
+        init_command.validate_and_render = original_validate
+
+
+def test_init_force_restores_the_exact_bytes_on_cancel_and_failure() -> None:
+    from stagr.cli.plan_apply import PIPELINE_FAILURES
+
+    crlf_bytes = DEMO_CONFIG.replace("\n", "\r\n").encode("utf-8")
+    for failure in (KeyboardInterrupt(), EOFError(), PIPELINE_FAILURES[0]("plan check failed")):
+        exit_code, kept_bytes = _run_init_force_interrupted_by(failure, crlf_bytes)
+        check(
+            exit_code == 1 and kept_bytes == crlf_bytes,
+            f"init --force: {type(failure).__name__} restores the replaced config byte for byte",
+        )
+
+
+def test_init_force_regenerates_a_malformed_platform_section() -> None:
+    for malformed_platform in ("platform: github\n", "platform:\n  type: github\n  publisher: 5239405\n"):
+        with starter_project(f"version: 2\nprofile: minimal\n{malformed_platform}") as project_root:
+            exit_code, _, stderr = run_cli(["init", "--force", "--root", str(project_root), "--app-id", "42"])
+            check(
+                exit_code == 0
+                and (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8") == build_config_template("minimal", "42"),
+                f"init --force: a malformed platform section is regenerated, not a crash ({stderr.strip()})",
+            )
+
+
+def test_init_force_reports_removed_settings_apart_from_commented_ones() -> None:
+    config_with_unoffered_setting = DEMO_CONFIG + "merge:\n  discussions:\n    require_resolved: true\n"
+    with starter_project(config_with_unoffered_setting) as project_root:
+        exit_code, stdout, _ = run_cli(["init", "--force", "--root", str(project_root)])
+        check(
+            exit_code == 0
+            and "now commented out in the template: remediation;" in stdout
+            and "removed, not offered by the template: merge;" in stdout,
+            "init --force: a setting the template does not offer is reported as removed, not commented out",
+        )
+
+
+CONFIG_TEMPLATE_TESTS = CONFIG_TEMPLATE_TESTS + (
+    test_init_force_restores_the_exact_bytes_on_cancel_and_failure,
+    test_init_force_regenerates_a_malformed_platform_section,
+    test_init_force_reports_removed_settings_apart_from_commented_ones,
+    test_init_force_regenerates_keeping_profile_and_app_id,
+    test_init_without_force_still_refuses_and_points_to_force,
+    test_init_force_flags_override_the_existing_values,
+    test_init_force_refuses_a_custom_config_without_a_profile_flag,
+)
+
+
+def _hinted_values(hint: str) -> list[str]:
+    return [value.split(" (")[0] for value in hint.split(": ", 1)[1].split(", ")]
+
+
+def test_template_hints_name_the_allowed_values() -> None:
+    template_text = build_config_template("minimal", PUBLISHER_APP_ID)
+    for expected_hint in (
+        "# supported today: review, security",
+        "# supported today: openai (codex)",
+        "# supported today: blocking",
+        "# any of: pr_opened, pr_updated, manual, issue_labeled",
+        "# any of: owner, member, collaborator, contributor",
+        "# supported: anthropic (Claude Code Action)",
+        "# 1 to 10",
+    ):
+        check(expected_hint in template_text, f"template: shows the allowed values `{expected_hint}`")
+    enabled = yaml.safe_load(build_config_template("minimal", PUBLISHER_APP_ID, optional_blocks_enabled=True))
+    check(
+        enabled["platform"]["trusted_roles"] == ["owner", "member", "collaborator"]
+        and enabled["stages"][0]["triggers"] == ["pr_opened", "pr_updated"]
+        and enabled["remediation"]["max_rounds"] == 5,
+        "template: uncommented, every hint is a YAML comment, not part of the value",
+    )
+
+
+def test_every_hinted_stage_value_passes_plan() -> None:
+    from stagr.cli.config_value_hints import build_stage_hints
+
+    stage_hints = build_stage_hints()
+    stage_cases = [
+        {"type": stage_type, "gate": gate, "triggers": trigger}
+        for stage_type in _hinted_values(stage_hints["type"])
+        for gate in _hinted_values(stage_hints["gate"])
+        for trigger in _hinted_values(stage_hints["triggers"])
+    ]
+    provider = _hinted_values(stage_hints["provider"])[0]
+    for case in stage_cases:
+        config_text = (
+            f"version: 2\nprofile: custom\nplatform: {{type: github, publisher: {{app_id: {PUBLISHER_APP_ID}}}}}\n"
+            f"stages:\n  - {{id: check, type: {case['type']}, provider: {provider}, gate: {case['gate']}, "
+            f"triggers: [{case['triggers']}]}}\n"
+        )
+        with starter_project(config_text) as project_root:
+            exit_code, _, stderr = run_cli(["plan", "--root", str(project_root)])
+            check(exit_code == 0, f"template: the hinted stage values {case} pass `stagr plan` ({stderr.strip()})")
+
+
+CONFIG_TEMPLATE_TESTS = CONFIG_TEMPLATE_TESTS + (
+    test_template_hints_name_the_allowed_values,
+    test_every_hinted_stage_value_passes_plan,
+)

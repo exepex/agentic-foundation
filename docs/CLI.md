@@ -40,7 +40,7 @@ logged** — only the secret *names* the contract references.
 >
 > ```bash
 > # a release, by its tag:
-> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.5.1.tar.gz"
+> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.5.2.tar.gz"
 > # reproducible — replace <commit> with a specific commit SHA:
 > pipx install "https://github.com/exepex/agentic-foundation/archive/<commit>.tar.gz"
 > # or the latest tip of main (evaluation only, mutable):
@@ -76,7 +76,7 @@ stagr help <command>  # detail for one command (also: `stagr <command> help`)
 ### `stagr init`
 
 ```bash
-stagr init [--app-id ID] [--profile minimal|standard] [--root DIR]
+stagr init [--app-id ID] [--profile minimal|standard] [--force] [--root DIR]
 ```
 
 Onboards a repository: writes `<root>/.agentic/config.yml`, the one file `plan` and `apply` read.
@@ -88,13 +88,21 @@ Onboards a repository: writes `<root>/.agentic/config.yml`, the one file `plan` 
   under `profile` in [CONFIGURATION.md](CONFIGURATION.md).
 - **Checks** the config it wrote with the same validation as `stagr plan` (it does not look at the
   workflow files), then prints how many pipeline files the config produces.
-- **Never overwrites** an existing config: edit that file, or delete it to start over. Like `apply`, it
-  refuses to write through a symlink, and it does not create a missing `--root`.
+- **Never overwrites** an existing config unless you pass `--force`. Like `apply`, it refuses to write
+  through a symlink, and it does not create a missing `--root`.
+- **`--force` regenerates** an existing config as the full template. It keeps the config's profile and
+  publisher App ID unless you pass `--profile` or `--app-id`; a `custom` config needs `--profile`.
+  Every other active setting goes back to its commented form; `init` lists each one it commented
+  out, and separately each one the template does not offer at all, which you add back by hand. If
+  the check fails or you cancel, the replaced config's content is put back unchanged.
 - **Writes the full template.** Only `version`, `profile` and the publisher App are active. Every
   other option that changes what Stagr generates (platform trust settings, provider secrets, the
   stage catalog, the fast path, `remediation`) is present but commented out, under a short comment on
   what it does. Uncomment what you want, then run `stagr plan`. The profile guide and the stage
   catalog are generated from the profile definitions, so they always match what a profile turns on.
+- **Shows the allowed values.** A setting with a fixed set of values carries an end-of-line comment
+  naming them. The comment is generated from the schema and from what the installed Stagr can
+  render, so it cannot go stale.
 
 A typical first run in a new repository:
 

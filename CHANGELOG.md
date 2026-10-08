@@ -4,6 +4,15 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
+## 0.5.2 — 2026-10-08
+
+Regenerate an existing config as the full template, and see each setting's allowed values in it.
+
+### New in `stagr init` ([docs/CLI.md](docs/CLI.md), `stagr init`)
+
+- `stagr init --force`.
+- Allowed-value comments in the template.
+
 ## 0.5.1 — 2026-10-08
 
 `stagr init` writes the whole configuration, and a profile's stages become a required minimum.
