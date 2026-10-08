@@ -4,6 +4,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+import shutil
 import subprocess
 
 import yaml
@@ -133,6 +134,9 @@ def test_remediation_agent_context_and_tools_are_restricted() -> None:
 
 def test_remediation_counts_fix_commits_not_message_lines() -> None:
     """Each fix commit is one round, however many lines its message has."""
+    if not shutil.which("jq"):
+        print("SKIP  remediation round-count test: jq is required")
+        return
     limit_step = _find_step(_load_remediation_job(), "Check the review")
     (round_filter,) = re.findall(r"commits\" \\\n\s*--jq '([^']+)' \| wc -l", limit_step["run"])
     multi_line_message = f"{FIX_COMMIT_PREFIX} restrict edits\n\n- owner check\n- return id\n\nCo-Authored-By: bot"

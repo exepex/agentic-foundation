@@ -6,12 +6,11 @@ as described in [docs/CLI.md](docs/CLI.md).
 
 ## 0.5.4 — 2026-10-08
 
-The fix-round limit counts fix commits, not the lines of their messages.
+Fix the remediation round limit.
 
 ### Fixed ([docs/CONFIGURATION.md](docs/CONFIGURATION.md), `remediation`)
 
-- `remediation.max_rounds` counted every line of each fix commit's message, so one multi-line fix
-  commit could hand a pull request to a human after its first round.
+- The fix-round count of `remediation.max_rounds`.
 
 ## 0.5.3 — 2026-10-08
 
