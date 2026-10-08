@@ -94,15 +94,15 @@ Onboards a repository: writes `<root>/.agentic/config.yml`, the one file `plan` 
   publisher App ID unless you pass `--profile` or `--app-id`; a `custom` config needs `--profile`.
   Every other active setting goes back to its commented form; `init` lists each one it commented
   out, and separately each one the template does not offer at all, which you add back by hand. If
-  the check fails or you cancel, the replaced config is put back exactly as it was.
+  the check fails or you cancel, the replaced config's content is put back unchanged.
 - **Writes the full template.** Only `version`, `profile` and the publisher App are active. Every
   other option that changes what Stagr generates (platform trust settings, provider secrets, the
   stage catalog, the fast path, `remediation`) is present but commented out, under a short comment on
   what it does. Uncomment what you want, then run `stagr plan`. The profile guide and the stage
   catalog are generated from the profile definitions, so they always match what a profile turns on.
 - **Shows the allowed values.** A setting with a fixed set of values carries an end-of-line comment
-  naming them, for example `# supported today: review, security` after a stage's `type`. Stage
-  types, providers and gates list what the installed Stagr can render, so the list cannot go stale.
+  naming them. The comment is generated from the schema and from what the installed Stagr can
+  render, so it cannot go stale.
 
 A typical first run in a new repository:
 
