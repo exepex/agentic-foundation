@@ -143,6 +143,21 @@ class _StubPlatformRenderer:
 
         return RenderedArtifact(path="governance.yml", content="# stub governance\n")
 
+    def render_thread_resolution(
+        self,
+        result_specs: "tuple[StageResultSpec, ...]",
+        render_context: "RenderContext",
+        token_secret: str,
+    ) -> "RenderedArtifact | None":
+        return None
+
+    def render_remediation(
+        self,
+        result_specs: "tuple[StageResultSpec, ...]",
+        render_context: "RenderContext",
+    ) -> "RenderedArtifact | None":
+        return None
+
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -168,8 +183,10 @@ def test_platform_renderer_interface_uses_only_neutral_types() -> None:
     (e.g. a GitHub workflow type) would fail this test.
 
     Approved annotations: ExecutionPlan, NormalizedStage, RenderContext,
-    StageResultSpec, StageRender, RenderedArtifact, and tuple[<neutral>, ...].
+    StageResultSpec, StageRender, RenderedArtifact, str (a secret name), None,
+    tuple[<neutral>, ...] and unions of these.
     """
+    import types
     import typing
 
     from stagr.core.platform_renderer import PlatformRenderer
@@ -183,7 +200,7 @@ def test_platform_renderer_interface_uses_only_neutral_types() -> None:
     )
 
     neutral_types = frozenset(
-        {ExecutionPlan, NormalizedStage, RenderContext, StageResultSpec, StageRender, RenderedArtifact}
+        {ExecutionPlan, NormalizedStage, RenderContext, StageResultSpec, StageRender, RenderedArtifact, str, type(None)}
     )
 
     def _is_neutral(annotation: object) -> bool:
@@ -191,6 +208,8 @@ def test_platform_renderer_interface_uses_only_neutral_types() -> None:
         if annotation in neutral_types:
             return True
         origin = typing.get_origin(annotation)
+        if origin in (typing.Union, types.UnionType):
+            return all(_is_neutral(arg) for arg in typing.get_args(annotation))
         if origin is tuple:
             return all(
                 arg is Ellipsis or _is_neutral(arg)
@@ -198,7 +217,7 @@ def test_platform_renderer_interface_uses_only_neutral_types() -> None:
             )
         return False
 
-    public_methods = ("render_stage", "render_routing", "render_governance")
+    public_methods = ("render_stage", "render_routing", "render_governance", "render_thread_resolution", "render_remediation")
     for method_name in public_methods:
         method = getattr(PlatformRenderer, method_name)
         hints = typing.get_type_hints(method)

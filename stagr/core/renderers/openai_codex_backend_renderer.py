@@ -89,9 +89,23 @@ from stagr.core.models import (
     SecretRef,
 )
 
-# Comment bodies posted on the PR to trigger each review kind.
+# Commands that trigger each Codex review kind.
 _CODEX_CODE_REVIEW_COMMAND = "@codex review"
 _CODEX_SECURITY_REVIEW_COMMAND = "@codex security review"
+
+# Instructions posted with every review command. Codex reads text after the command as guidance
+# for that review. Findings drive automated fixes, so a speculative finding becomes a needless
+# patch: the reviewer must report only what a realistic input or caller actually breaks.
+CODEX_REVIEW_GUIDELINES = (
+    "Review guidelines for this request:\n"
+    "- Report a finding only when it describes a real problem in this change: a concrete input,"
+    " caller or sequence of events that realistically reaches it, and the wrong result it causes.\n"
+    "- Do not report hypothetical or highly unlikely cases, misuse the code's contract or existing"
+    " validation already rules out, style preferences, or extra hardening whose cost exceeds the"
+    " risk.\n"
+    "- For each finding, state the triggering input or path and the impact in one or two sentences.\n"
+    "- When unsure whether a finding is real, leave it out."
+)
 
 # Alias for the credential that allows posting PR comments as a trusted user
 # (Codex honours @codex commands only from trusted authors, not from the
@@ -219,13 +233,13 @@ class OpenAICodexBackendRenderer:
     def _resolve_codex_comment_command(self, stage_kind: StageKind) -> str:
         """Return the PR comment body that triggers the correct Codex review kind.
 
-        REVIEW stages use ``@codex review``; SECURITY stages use
-        ``@codex security review``. Raises ValueError for any other stage kind.
+        REVIEW stages use ``@codex review``; SECURITY stages use ``@codex security review``. Both
+        are followed by ``CODEX_REVIEW_GUIDELINES``. Raises ValueError for any other stage kind.
         """
         if stage_kind is StageKind.REVIEW:
-            return _CODEX_CODE_REVIEW_COMMAND
+            return f"{_CODEX_CODE_REVIEW_COMMAND}\n\n{CODEX_REVIEW_GUIDELINES}"
         if stage_kind is StageKind.SECURITY:
-            return _CODEX_SECURITY_REVIEW_COMMAND
+            return f"{_CODEX_SECURITY_REVIEW_COMMAND}\n\n{CODEX_REVIEW_GUIDELINES}"
         raise ValueError(
             f"OpenAICodexBackendRenderer does not support stage kind {stage_kind!r}; "
             f"only REVIEW and SECURITY are valid"

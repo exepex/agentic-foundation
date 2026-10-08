@@ -58,7 +58,7 @@ Trigger mapping (design-doc 08):
 """
 from __future__ import annotations
 
-from stagr.core.enums import InvocationKind, StageResultSignalKind
+from stagr.core.enums import InvocationKind, StageResultSignalKind, StageTrigger
 from stagr.core.models import (
     ExecutionPlan,
     NormalizedStage,
@@ -78,6 +78,14 @@ from stagr.platforms.github.stage_signal_config import (
     build_stage_signal_config,
 )
 from stagr.platforms.github.stage_workflow import build_on_section, build_stage_workflow_yaml
+from stagr.platforms.github.remediation_workflow import (
+    REMEDIATION_WORKFLOW_FILENAME,
+    generate_remediation_workflow_yaml,
+)
+from stagr.platforms.github.thread_resolution_workflow import (
+    THREAD_RESOLUTION_WORKFLOW_FILENAME,
+    generate_thread_resolution_workflow_yaml,
+)
 
 
 WORKFLOW_DIRECTORY = ".github/workflows"
@@ -116,6 +124,12 @@ class GitHubPlatformRenderer:
     Phase 2b (render_governance): returns the merge-gate workflow artifact
     ``.github/workflows/governance.yml``.
 
+    Phase 2c (render_thread_resolution): returns the workflow artifact
+    ``.github/workflows/resolve-outdated-threads.yml`` that resolves outdated finding threads.
+
+    Phase 2d (render_remediation): returns the workflow artifact ``.github/workflows/remediation.yml``
+    in which an agent judges and answers review findings, when the config enables remediation.
+
     No method writes to the file system.
     """
 
@@ -134,6 +148,8 @@ class GitHubPlatformRenderer:
         "stage-*.yml",
         ROUTING_WORKFLOW_FILENAME,
         GOVERNANCE_WORKFLOW_FILENAME,
+        THREAD_RESOLUTION_WORKFLOW_FILENAME,
+        REMEDIATION_WORKFLOW_FILENAME,
     )
     GENERATED_WORKFLOW_NAME_PREFIX = 'name: "Stagr '
 
@@ -198,6 +214,7 @@ class GitHubPlatformRenderer:
                 provenance=StageResultProvenance(
                     publisher_identity=self._publisher_app_id,
                 ),
+                finding_author=plan.gate_disposition.scope.created_by if plan.gate_disposition.scope else None,
             ),
             artifact=build_generated_artifact(f"{WORKFLOW_DIRECTORY}/stage-{stage.id}.yml", workflow_yaml),
         )
@@ -253,6 +270,50 @@ class GitHubPlatformRenderer:
         return build_generated_artifact(
             f"{WORKFLOW_DIRECTORY}/{GOVERNANCE_WORKFLOW_FILENAME}", governance_yaml
         )
+
+    def render_thread_resolution(
+        self,
+        result_specs: tuple[StageResultSpec, ...],
+        render_context: RenderContext,
+        token_secret: str,
+    ) -> RenderedArtifact | None:
+        """Phase 2c: return ``.github/workflows/resolve-outdated-threads.yml``, or None.
+
+        The workflow resolves finished threads written by the review backends of stages that review
+        every new commit. None when no such stage reads review threads, so there is nothing to resolve.
+        """
+        # Only stages that review every new commit: a finding a push makes outdated is raised again
+        # by that commit's review if it is still real. Without the re-review it would be lost.
+        rereviewed_stage_ids = {
+            stage.id for stage in render_context.stages if StageTrigger.PR_UPDATED in stage.triggers
+        }
+        finding_authors = tuple(
+            result_spec.finding_author
+            for result_spec in result_specs
+            if result_spec.finding_author and result_spec.stage_id in rereviewed_stage_ids
+        )
+        if not finding_authors:
+            return None
+        workflow_yaml = generate_thread_resolution_workflow_yaml(finding_authors, token_secret, render_context)
+        return build_generated_artifact(
+            f"{WORKFLOW_DIRECTORY}/{THREAD_RESOLUTION_WORKFLOW_FILENAME}", workflow_yaml
+        )
+
+    def render_remediation(
+        self,
+        result_specs: tuple[StageResultSpec, ...],
+        render_context: RenderContext,
+    ) -> RenderedArtifact | None:
+        """Phase 2d: return ``.github/workflows/remediation.yml``, or None without remediation."""
+        if render_context.remediation_policy is None:
+            return None
+        review_bot_logins = tuple(
+            result_spec.finding_author for result_spec in result_specs if result_spec.finding_author
+        )
+        workflow_yaml = generate_remediation_workflow_yaml(
+            render_context.remediation_policy, review_bot_logins, render_context
+        )
+        return build_generated_artifact(f"{WORKFLOW_DIRECTORY}/{REMEDIATION_WORKFLOW_FILENAME}", workflow_yaml)
 
     # ------------------------------------------------------------------
     # Private helpers

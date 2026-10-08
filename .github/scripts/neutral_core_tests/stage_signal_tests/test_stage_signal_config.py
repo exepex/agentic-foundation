@@ -1,6 +1,8 @@
 """Render-time validation: plans the GitHub runtime cannot evaluate exactly are rejected."""
 from __future__ import annotations
 
+from stagr.core.renderers.openai_codex_backend_renderer import CODEX_REVIEW_GUIDELINES
+
 import dataclasses
 
 from neutral_core_tests.github_platform_renderer_tests.helpers import (
@@ -67,8 +69,9 @@ def test_codex_review_plan_produces_the_expected_runtime_document() -> None:
                       "producedBy": "chatgpt-codex-connector[bot]"}],
         "gate": {"kind": "no_open_threads", "selector": "",
                  "createdBy": "chatgpt-codex-connector[bot]", "headShaBound": True},
-        "invocation": {"kind": "pr_comment", "body": "@codex review", "leaseMinutes": 30},
-        "dependencies": [], "routing": None,
+        "invocation": {"kind": "pr_comment", "body": f"@codex review\n\n{CODEX_REVIEW_GUIDELINES}",
+                       "leaseMinutes": 30},
+        "dependencies": [], "routing": None, "handOffLabel": None,
     }
     assert config.evidence_producers == ("chatgpt-codex-connector[bot]",)
 

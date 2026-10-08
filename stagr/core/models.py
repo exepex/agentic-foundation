@@ -267,6 +267,9 @@ class StageResultSpec:
     signal_kind: StageResultSignalKind
     signal_selector: str              # platform-specific locator
     provenance: StageResultProvenance
+    # Login of the review backend whose threads are the stage's findings; None when the stage's
+    # gate does not read review threads. Its outdated threads are resolved automatically.
+    finding_author: str | None = None
 
 
 @dataclass(frozen=True)
@@ -396,6 +399,20 @@ class MergePolicy:
 
 
 @dataclass(frozen=True)
+class RemediationPolicy:
+    """How review findings are fixed automatically (``remediation`` in the config).
+
+    ``provider`` names the fixing agent, ``max_rounds`` caps the automated fix rounds per pull
+    request before a human takes over, and ``api_key_secret`` is the NAME of the secret holding the
+    provider's API key.
+    """
+
+    provider: str
+    max_rounds: int
+    api_key_secret: str
+
+
+@dataclass(frozen=True)
 class RenderContext:
     """Complete input to every renderer. Assembled by the Stagr CLI; never modified by renderers.
 
@@ -408,3 +425,5 @@ class RenderContext:
     merge_policy: MergePolicy
     trust_policy: TrustPolicy
     platform: str
+    # None when the config has no `remediation` section: findings are fixed by hand.
+    remediation_policy: RemediationPolicy | None = None

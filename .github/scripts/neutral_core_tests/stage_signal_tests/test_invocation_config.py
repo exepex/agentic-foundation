@@ -1,6 +1,8 @@
 """Render-time and run-time validation of the invocation and its lease (issue #205)."""
 from __future__ import annotations
 
+from stagr.core.renderers.openai_codex_backend_renderer import CODEX_REVIEW_GUIDELINES
+
 import dataclasses
 import json
 
@@ -49,7 +51,8 @@ def test_lease_defaults_to_thirty_minutes_when_the_backend_does_not_set_one() ->
     plan, stage = build_codex_plan()
     assert "lease_minutes" not in plan.invocation.params
     assert _build_document(plan, stage)["invocation"] == {
-        "kind": "pr_comment", "body": "@codex review", "leaseMinutes": runtime.DEFAULT_LEASE_MINUTES}
+        "kind": "pr_comment", "body": f"@codex review\n\n{CODEX_REVIEW_GUIDELINES}",
+        "leaseMinutes": runtime.DEFAULT_LEASE_MINUTES}
     assert runtime.DEFAULT_LEASE_MINUTES == 30
 
 

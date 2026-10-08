@@ -117,6 +117,7 @@ def build_stage_signal_config(
         "invocation": invocation_document,
         "dependencies": _build_dependency_documents(stage, render_context, publisher_app_id),
         "routing": _build_routing_document(render_context),
+        "handOffLabel": trust_policy.human_merge_label if render_context.remediation_policy else None,
     }
     if _GITHUB_EXPRESSION_OPENER in json.dumps(document):
         raise ValueError(

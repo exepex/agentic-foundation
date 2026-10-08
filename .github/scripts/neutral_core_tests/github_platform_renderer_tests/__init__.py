@@ -94,6 +94,13 @@ from neutral_core_tests.github_platform_renderer_tests.test_routing_workflow imp
     test_fast_path_publication_step_also_uses_upsert,
 )
 
+from neutral_core_tests.github_platform_renderer_tests.test_thread_resolution_workflow import (
+    THREAD_RESOLUTION_WORKFLOW_TESTS,
+)
+from neutral_core_tests.github_platform_renderer_tests.test_remediation_workflow import (
+    REMEDIATION_WORKFLOW_TESTS,
+)
+
 GITHUB_PLATFORM_RENDERER_TESTS = [
     test_privileged_stage_produces_pull_request_target,
     test_non_privileged_stage_renders_successfully,
@@ -174,6 +181,8 @@ GITHUB_PLATFORM_RENDERER_TESTS = [
     test_publication_step_uses_upsert_not_blind_post,
     test_publication_step_embeds_stagr_app_id_for_reconciliation,
     test_fast_path_publication_step_also_uses_upsert,
+    *THREAD_RESOLUTION_WORKFLOW_TESTS,
+    *REMEDIATION_WORKFLOW_TESTS,
 ]
 
 __all__ = [
@@ -257,4 +266,6 @@ __all__ = [
     "test_publication_step_uses_upsert_not_blind_post",
     "test_publication_step_embeds_stagr_app_id_for_reconciliation",
     "test_fast_path_publication_step_also_uses_upsert",
+    "THREAD_RESOLUTION_WORKFLOW_TESTS",
+    "REMEDIATION_WORKFLOW_TESTS",
 ]

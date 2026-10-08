@@ -20,9 +20,14 @@ from stagr.core.config_parser import parse_config
 from stagr.core.config_validation import validate_config
 from stagr.core.models import ConfigError, RenderContext, RenderedArtifact, StaticValidationError
 from stagr.core.pipeline import normalize_config
-from stagr.core.policy import derive_merge_policy, derive_routing_policy, derive_trust_policy
+from stagr.core.policy import (
+    derive_merge_policy,
+    derive_remediation_policy,
+    derive_routing_policy,
+    derive_trust_policy,
+)
 from stagr.core.publisher import PublisherConfig, derive_publisher_config
-from stagr.core.render_loop import run_phase1
+from stagr.core.render_loop import resolve_platform_token_secret, run_phase1
 from stagr.core.renderers.openai_codex_backend_renderer import OpenAICodexBackendRenderer
 from stagr.core.static_validator import (
     validate_backend_renderer_availability,
@@ -111,6 +116,7 @@ def load_render_inputs(project_root: Path) -> RenderInputs:
         merge_policy=derive_merge_policy(raw_config, normalized_stages, trust_policy),
         trust_policy=trust_policy,
         platform=platform_type,
+        remediation_policy=derive_remediation_policy(raw_config),
     )
     return RenderInputs(
         raw_config=raw_config,
@@ -121,9 +127,11 @@ def load_render_inputs(project_root: Path) -> RenderInputs:
 
 
 def render_artifacts(render_inputs: RenderInputs) -> tuple[RenderedArtifact, ...]:
-    """Run Phase 1 (per stage), then Phase 2 (routing, governance); return every artifact.
+    """Run Phase 1 (per stage), then Phase 2 (routing, governance, thread resolution).
 
-    The order is stable: stage workflows in dependency order, then routing, then governance.
+    The order is stable: stage workflows in dependency order, then routing, then governance, then
+    the outdated-thread resolution workflow when a stage reads review threads, then the remediation
+    workflow when the config enables it.
     """
     render_context = render_inputs.render_context
     platform_renderer_class = PLATFORM_RENDERER_CLASSES[render_context.platform]
@@ -135,10 +143,18 @@ def render_artifacts(render_inputs: RenderInputs) -> tuple[RenderedArtifact, ...
         render_context, build_backend_registry(), platform_renderer, render_inputs.raw_config
     )
     result_specs = tuple(stage_render.result_spec for stage_render in stage_renders)
+    thread_resolution_artifact = platform_renderer.render_thread_resolution(
+        result_specs, render_context, resolve_platform_token_secret(render_inputs.raw_config)
+    )
+    optional_artifacts = (
+        thread_resolution_artifact,
+        platform_renderer.render_remediation(result_specs, render_context),
+    )
     artifacts = (
         *(stage_render.artifact for stage_render in stage_renders),
         platform_renderer.render_routing(render_context),
         platform_renderer.render_governance(result_specs, render_context),
+        *(artifact for artifact in optional_artifacts if artifact is not None),
     )
     _assert_artifact_paths_are_unique(artifacts)
     return artifacts

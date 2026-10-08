@@ -1,6 +1,8 @@
 """Rendered workflow structure for the backend invocation and its credential isolation (issue #205)."""
 from __future__ import annotations
 
+from stagr.core.renderers.openai_codex_backend_renderer import CODEX_REVIEW_GUIDELINES
+
 import dataclasses
 import json
 
@@ -110,7 +112,7 @@ def test_invocation_and_lease_reach_the_runtime_only_through_the_configuration_d
     document = parse_workflow(render_workflow_text(plan, stage))
     configuration = json.loads(document["env"]["STAGR_STAGE_CONFIG"])
     assert configuration["invocation"] == {
-        "kind": "pr_comment", "body": "@codex security review", "leaseMinutes": 45}
+        "kind": "pr_comment", "body": f"@codex security review\n\n{CODEX_REVIEW_GUIDELINES}", "leaseMinutes": 45}
     assert "@codex" not in document["env"]["STAGR_RUNTIME_SCRIPT"]
     assert "@codex" not in json.dumps(_steps(document)["Invoke backend (idempotent)"])
 

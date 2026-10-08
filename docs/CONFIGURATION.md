@@ -22,7 +22,8 @@ you can rename them in the config (see below).
 
 | Purpose | Name | Type | Required when | Scope / notes |
 |---|---|---|---|---|
-| Codex comment-trigger / PR publication | `REMEDIATION_TOKEN` | **Fine-grained PAT (real user)** | a stage uses Codex's `@codex` comment flow | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
+| Codex comment-trigger, PR publication, resolving outdated review threads | `REMEDIATION_TOKEN` | **Fine-grained PAT (real user)** | a stage uses Codex's `@codex` comment flow | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
+| Remediation agent API key | `ANTHROPIC_API_KEY` | Anthropic API key | the config has a [`remediation`](#remediation-optional--automated-fixes) section | Also install the **Claude GitHub App** on the repository: the agent pushes its fixes as that App, which starts the next review. |
 | Stagr GitHub App private key | `STAGR_APP_PRIVATE_KEY` | GitHub App private key | you configure `platform.publisher` | See [Publisher](#publisher-stagr-github-app). |
 | GitHub API (PR reads) | `GITHUB_TOKEN` | Provided by Actions | always | No action needed; each generated workflow sets its own least-privilege permissions. |
 
@@ -184,6 +185,48 @@ documentation other people depend on. This repository does exactly that.
 |---|---|
 | `discussions.require_resolved` | When `true`, all open review discussions must be resolved before the merge gate passes. Default `false` (discussion state is not checked). |
 
+### `remediation` (optional — automated fixes)
+Omit it to fix review findings by hand. With it, `stagr apply` writes `remediation.yml`: after each
+review from a stage's review backend (Codex) or a trusted human reviewer, an agent judges every
+finding, fixes the ones that are real and declines the rest with its reasons.
+
+```yaml
+remediation:
+  provider: anthropic        # Claude Code Action, the only provider today
+  max_rounds: 5              # optional, 1 to 10
+  api_key_secret: ANTHROPIC_API_KEY   # optional, NAME of the secret
+```
+
+| Field | Meaning |
+|---|---|
+| `provider` | The fixing agent. `anthropic`: Claude Code Action. Required. |
+| `max_rounds` | Automated fix rounds per pull request. Default `5`. |
+| `api_key_secret` | NAME of the secret holding the provider API key. Default `ANTHROPIC_API_KEY`. |
+
+How a round works:
+
+- **Judging.** The agent accepts a finding only when it describes a real problem in the change: a
+  realistic input or caller that reaches it and the wrong result, a plausible exploit path, a broken
+  contract, or a missing test for changed behavior. Hypothetical or highly unlikely cases, misuse the
+  contract already rules out, style, and fixes that cost more than the risk are declined. When in
+  doubt, it declines. Codex is asked for the same standard with every review request.
+- **Fixed finding.** The agent changes the code and pushes one commit starting `fix(review):`; only
+  after the push succeeds does it reply on the thread with what it changed. That push starts the next
+  review, and the resolution workflow resolves the thread (see "Files written" in [CLI.md](CLI.md)).
+- **Declined finding.** The agent replies with its evidence and leaves the thread open. An open
+  finding thread on the current commit keeps the merge gate blocked, so a human decides: resolve the
+  thread to accept the decline, or answer it with a review comment, which the agent picks up as a new
+  review.
+- **Round limit.** When a pull request already has `max_rounds` fix commits and a new review still
+  has findings, the pull request gets the human-merge label (`platform.labels.human_merge`) and one
+  comment. While the label is set, no review is requested and no fix is attempted. To hand the pull
+  request back to automation, remove the label, then push a commit.
+- **Who drives it.** Only pull requests from a branch of this repository whose author has a trusted
+  role (`platform.trusted_roles`), reviewed by a stage's review backend or a reviewer with a trusted
+  role, about the pull request's current commit. Only the reviewer's and the review backends'
+  comments reach the agent, and review text is data for it, never instructions. Its tool permissions
+  forbid editing `.github/` and `.agentic/`, and it never resolves a thread.
+
 ---
 
 ## 3a. Model resolution
@@ -245,6 +288,9 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
    blocking stage has passed on that commit. Do not require the workflow's own job: a run that starts
    when a stage finishes executes on the default branch, so the job's result never reaches the pull
    request.
+6. Optional: add a [`remediation`](#remediation-optional--automated-fixes) section, install the
+   Claude GitHub App on the repository, and create its API key secret (section 2). Run `stagr apply`
+   again.
 
 ---
 

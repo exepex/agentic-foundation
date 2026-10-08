@@ -7,6 +7,7 @@ Issue #184: derive_trust_policy — who and what Stagr-generated automation
 may act on behalf of.
 Issue #185: derive_routing_policy — fast-path routing policy.
 Issue #186: derive_merge_policy — merge eligibility requirements.
+derive_remediation_policy — automated fixing of review findings.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from .models import (
     MergePolicy,
     NormalizedStage,
     PathMatchSpec,
+    RemediationPolicy,
     RouteStageMap,
     RoutingPolicy,
     StaticValidationError,
@@ -221,3 +223,22 @@ def _derive_discussion_policy(config: dict[str, Any]) -> DiscussionPolicy | None
     if "require_resolved" not in discussions_cfg:
         return None
     return DiscussionPolicy(require_resolved=bool(discussions_cfg["require_resolved"]))
+
+
+_DEFAULT_REMEDIATION_MAX_ROUNDS = 5
+_DEFAULT_REMEDIATION_API_KEY_SECRET = "ANTHROPIC_API_KEY"
+
+
+def derive_remediation_policy(config: dict[str, Any]) -> RemediationPolicy | None:
+    """Return the ``remediation`` policy, or None when the config has no ``remediation`` section.
+
+    The schema has already checked the shape (provider, round range, secret name).
+    """
+    remediation_config: dict[str, Any] | None = config.get("remediation")
+    if not remediation_config:
+        return None
+    return RemediationPolicy(
+        provider=str(remediation_config["provider"]),
+        max_rounds=int(remediation_config.get("max_rounds", _DEFAULT_REMEDIATION_MAX_ROUNDS)),
+        api_key_secret=str(remediation_config.get("api_key_secret", _DEFAULT_REMEDIATION_API_KEY_SECRET)),
+    )

@@ -16,6 +16,7 @@ from neutral_core_tests.codex_renderer_tests.test_invocation import (
     test_codex_renderer_provider_and_backend_match_config,
     test_codex_renderer_review_stage_posts_codex_review_command,
     test_codex_renderer_security_stage_posts_security_review_command,
+    test_codex_review_requests_carry_the_reasoning_guidelines,
 )
 from neutral_core_tests.codex_renderer_tests.test_evidence_and_rejection import (
     test_codex_renderer_gate_disposition_scope_is_codex_bot_head_bound,
@@ -40,6 +41,7 @@ CODEX_RENDERER_TESTS = [
     test_codex_renderer_provider_and_backend_match_config,
     test_codex_renderer_review_stage_posts_codex_review_command,
     test_codex_renderer_security_stage_posts_security_review_command,
+    test_codex_review_requests_carry_the_reasoning_guidelines,
     test_codex_renderer_gate_disposition_scope_is_codex_bot_head_bound,
     test_codex_renderer_security_stage_gate_disposition_is_no_open_threads,
     test_codex_renderer_review_stage_evidence_success_condition_is_completed,
@@ -63,6 +65,7 @@ __all__ = [
     "test_codex_renderer_provider_and_backend_match_config",
     "test_codex_renderer_review_stage_posts_codex_review_command",
     "test_codex_renderer_security_stage_posts_security_review_command",
+    "test_codex_review_requests_carry_the_reasoning_guidelines",
     "test_codex_renderer_gate_disposition_scope_is_codex_bot_head_bound",
     "test_codex_renderer_security_stage_gate_disposition_is_no_open_threads",
     "test_codex_renderer_review_stage_evidence_success_condition_is_completed",
