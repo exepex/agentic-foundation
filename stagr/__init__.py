@@ -7,4 +7,4 @@ initializes, and governs the pipeline — it never executes the agents itself.
 The public entry point is the `stagr` command (see `stagr.cli:main`).
 """
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"

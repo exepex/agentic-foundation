@@ -30,6 +30,7 @@ def _render_governance_to_string(
     extra_stage_id: str | None = None,
     extra_gate: StageGate = StageGate.NON_BLOCKING,
     fast_path_policy: FastPathPolicy | None = None,
+    fork_policy: ForkPolicy = ForkPolicy.DENY,
 ) -> str:
     """Render a governance workflow and return the YAML text."""
     renderer = build_renderer()
@@ -70,7 +71,7 @@ def _render_governance_to_string(
         ),
         trust_policy=TrustPolicy(
             trusted_roles=(AuthorRole.OWNER,),
-            fork_policy=ForkPolicy.DENY,
+            fork_policy=fork_policy,
             human_merge_label="human-merge",
         ),
         platform="github",

@@ -133,7 +133,7 @@ authorization errors):
 
 | Permission | Access | Why |
 |---|---|---|
-| Checks | Read and write | Create and update the stage Check Runs; the merge gate reads them |
+| Checks | Read and write | Create and update the stage Check Runs; the merge gate reads them and publishes its verdict (setup step 5, section 4) |
 | Pull requests | Read | Read pull requests, changed files and review threads |
 | Issues | Read | Read pull request comments, where review backends post their results |
 | Metadata | Read | Granted automatically |
@@ -239,6 +239,12 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 4. Run `stagr plan` to validate the config and list the workflow files it would write or remove (it
    writes nothing), then `stagr apply` to make those changes in `.github/workflows/`. Commit the
    result. See [CLI.md](CLI.md).
+5. Make the merge gate required: in a branch ruleset (or branch protection) for the default branch,
+   require the status check **`stagr/governance`** and set its source to your Stagr GitHub App. The
+   governance workflow publishes that check on each pull request's head commit, failing until every
+   blocking stage has passed on that commit. Do not require the workflow's own job: a run that starts
+   when a stage finishes executes on the default branch, so the job's result never reaches the pull
+   request.
 
 ---
 
@@ -247,5 +253,6 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 | Symptom | Likely cause |
 |---|---|
 | Reviewer never runs on Codex | `REMEDIATION_TOKEN` missing or not a real-user PAT, or the Codex GitHub App is not installed. |
+| Pull request stays blocked after every stage passed | The default branch's ruleset does not require the merge-gate check as set out in setup step 5 (section 4). |
 | Fast path never triggers | A changed file matches none of `routing.fast_path.globs`. |
 | Config rejected with a secret-name error | A `*_secret` field holds something that is not a valid secret name (for example a pasted token). Put the value in a CI secret and use its name. |

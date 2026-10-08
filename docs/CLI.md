@@ -40,7 +40,7 @@ logged** — only the secret *names* the contract references.
 >
 > ```bash
 > # a release, by its tag:
-> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.3.1.tar.gz"
+> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.3.2.tar.gz"
 > # reproducible — replace <commit> with a specific commit SHA:
 > pipx install "https://github.com/exepex/agentic-foundation/archive/<commit>.tar.gz"
 > # or the latest tip of main (evaluation only, mutable):

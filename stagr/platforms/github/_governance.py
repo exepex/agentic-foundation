@@ -17,6 +17,12 @@ Security invariants maintained by the generated workflow:
   the native status/conclusion fields), and schemaVersion is validated first.
 - Head SHA binding: only signals whose headSha matches the current PR head
   commit are accepted; stale signals for prior commits are ignored.
+- Verdict on the PR head: the workflow publishes its verdict as the
+  ``stagr/governance`` Check Run of the Stagr App on the PR head commit. A run
+  started by ``check_suite`` executes on the default branch, so the job's own
+  check would land on the default-branch commit and never reach the PR; the
+  published Check Run is what a branch ruleset requires. An unchanged verdict
+  is not re-published, so publishing cannot re-trigger the workflow forever.
 """
 from __future__ import annotations
 
@@ -27,6 +33,10 @@ from stagr.platforms.github.action_pins import APP_TOKEN_ACTION_REF
 # a Check Run's output.summary field.  Must match the version emitted by
 # stage execution artifacts at run time.
 _EXPECTED_STAGE_RESULT_SIGNAL_SCHEMA_VERSION = "1"
+
+# Name of the Check Run carrying the merge-gate verdict on the PR head commit.
+# A branch ruleset requires this check (docs/CONFIGURATION.md, "Merge gate").
+GOVERNANCE_CHECK_RUN_NAME = "stagr/governance"
 
 # Width of the indentation block for run: | script content in the generated
 # YAML (offset from the left edge of the file).
@@ -88,7 +98,14 @@ def generate_governance_workflow_yaml(
         "  cancel-in-progress: false\n"
         "\n"
         "jobs:\n"
-        "  evaluate-signals:\n"
+        "  publish-merge-verdict:\n"
+        "    # A check suite on a commit that heads no pull request has no verdict to publish.\n"
+        "    # The publisher is privileged, so a fork pull request never reaches it (under every\n"
+        "    # fork policy). A check suite lists only pull requests whose head branch is in this\n"
+        "    # repository, so the check_suite path already excludes forks.\n"
+        "    if: (github.event_name == 'pull_request_target'"
+        " && github.event.pull_request.head.repo.full_name == github.repository)"
+        " || github.event.check_suite.pull_requests[0].number\n"
         "    runs-on: ubuntu-latest\n"
         "    steps:\n"
         "      - name: Acquire Stagr App installation token\n"
@@ -99,6 +116,9 @@ def generate_governance_workflow_yaml(
         f'          private-key: "{private_key_expr}"\n'
         "\n"
         "      - name: Evaluate stage result signals\n"
+        "        id: evaluate\n"
+        "        # The verdict, pass or block, is published by the next step.\n"
+        "        continue-on-error: true\n"
         "        env:\n"
         f'          GH_TOKEN: "{app_token_output_expr}"\n'
         f'          STAGR_APP_ID: "{publisher_app_id}"\n'
@@ -106,6 +126,18 @@ def generate_governance_workflow_yaml(
         f'          REPO: "{repo_expr}"\n'
         "        run: |\n"
         f"{indented_script}"
+        "\n"
+        "      - name: Publish the merge-gate verdict on the pull request head\n"
+        "        env:\n"
+        f'          GH_TOKEN: "{app_token_output_expr}"\n'
+        f'          STAGR_APP_ID: "{publisher_app_id}"\n'
+        f'          PR_HEAD_SHA: "{pr_head_sha_expr}"\n'
+        f'          REPO: "{repo_expr}"\n'
+        '          EVALUATION_OUTCOME: "${{ steps.evaluate.outcome }}"\n'
+        '          RUN_URL: "${{ github.server_url }}/${{ github.repository }}'
+        '/actions/runs/${{ github.run_id }}"\n'
+        "        run: |\n"
+        f"{_indent_script_for_yaml(_build_verdict_publishing_script())}"
     )
 
 
@@ -127,6 +159,47 @@ def _indent_script_for_yaml(script: str) -> str:
         else:
             lines.append("")
     return "\n".join(lines) + "\n"
+
+
+def _build_verdict_publishing_script() -> str:
+    """Return shell code that publishes the verdict as the governance Check Run.
+
+    Fail closed: any evaluation outcome other than success publishes a failure.
+    The Stagr App's existing Check Run for the head is updated in place, and
+    left alone when its conclusion already matches, so a publication that
+    completes the App's check suite again ends in a run that publishes nothing.
+    """
+    return (
+        "set -euo pipefail\n"
+        'if [[ "${EVALUATION_OUTCOME}" == "success" ]]; then\n'
+        "  verdict_conclusion=success\n"
+        '  verdict_title="Merge is eligible"\n'
+        "else\n"
+        "  verdict_conclusion=failure\n"
+        '  verdict_title="Merge is blocked"\n'
+        "fi\n"
+        'verdict_summary="Stagr governance evaluated the blocking stages on ${PR_HEAD_SHA}.'
+        ' Details: ${RUN_URL}"\n'
+        "existing_check_run=\"$(gh api \\\n"
+        f'  "repos/${{REPO}}/commits/${{PR_HEAD_SHA}}/check-runs?check_name={GOVERNANCE_CHECK_RUN_NAME}'
+        '&filter=latest&per_page=10" \\\n'
+        "  --jq \"[.check_runs[] | select(.app.id | tostring == \\\"${STAGR_APP_ID}\\\")][0] // empty\")\"\n"
+        'if [[ -z "${existing_check_run}" ]]; then\n'
+        "  gh api --method POST \"repos/${REPO}/check-runs\" \\\n"
+        f'    -f "name={GOVERNANCE_CHECK_RUN_NAME}" -f "head_sha=${{PR_HEAD_SHA}}" -f status=completed \\\n'
+        '    -f "conclusion=${verdict_conclusion}" -f "output[title]=${verdict_title}" \\\n'
+        '    -f "output[summary]=${verdict_summary}" >/dev/null\n'
+        "elif [[ \"$(echo \"${existing_check_run}\" | jq -r '.conclusion')\" != \"${verdict_conclusion}\" ]]; then\n"
+        "  existing_check_run_id=\"$(echo \"${existing_check_run}\" | jq -r '.id')\"\n"
+        "  gh api --method PATCH \"repos/${REPO}/check-runs/${existing_check_run_id}\" \\\n"
+        '    -f status=completed -f "conclusion=${verdict_conclusion}" -f "output[title]=${verdict_title}" \\\n'
+        '    -f "output[summary]=${verdict_summary}" >/dev/null\n'
+        "else\n"
+        f'  echo "{GOVERNANCE_CHECK_RUN_NAME} already reads ${{verdict_conclusion}} on ${{PR_HEAD_SHA}}; nothing to publish."\n'
+        "  exit 0\n"
+        "fi\n"
+        f'echo "Published {GOVERNANCE_CHECK_RUN_NAME}: ${{verdict_title}} (${{PR_HEAD_SHA}})."\n'
+    )
 
 
 def _build_route_reading_block() -> str:
@@ -175,7 +248,7 @@ def _build_evaluation_script(
     result_specs: tuple[StageResultSpec, ...],
     render_context: RenderContext,
 ) -> str:
-    """Return the complete shell script body for the evaluate-signals step."""
+    """Return the complete shell script body for the evaluation step."""
     stage_call_lines = _build_stage_evaluation_call_lines(result_specs, render_context)
 
     route_reading_block = ""

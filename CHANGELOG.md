@@ -4,6 +4,25 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
+## 0.3.2 — 2026-10-08
+
+The merge gate reaches the pull request when a stage finishes after the gate first ran.
+
+### Fixed ([docs/CONFIGURATION.md](docs/CONFIGURATION.md), section 4)
+
+- The governance workflow publishes its verdict as the `stagr/governance` check of the Stagr GitHub App
+  on the pull request's head commit. Before, the gate re-ran when a stage finished but its result was
+  recorded on the default branch, so the pull request kept the earlier failed `evaluate-signals` check.
+- A fork pull request never reaches the publisher.
+- The governance job is now `publish-merge-verdict`. It succeeds once the verdict is published; the
+  verdict itself is the `stagr/governance` check.
+
+### Upgrading from 0.3.1
+
+Run `stagr apply` to regenerate `governance.yml`, then update the default branch's ruleset to require the
+merge-gate check named in [docs/CONFIGURATION.md](docs/CONFIGURATION.md), setup step 5, in place of
+`evaluate-signals`.
+
 ## 0.3.1 — 2026-10-08
 
 Override ownership of generated files, so switching profile never needs manual file deletion.
