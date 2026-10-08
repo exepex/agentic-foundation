@@ -13,13 +13,15 @@ The merge gate reaches the pull request when a stage finishes after the gate fir
 - The governance workflow publishes its verdict as the `stagr/governance` check of the Stagr GitHub App
   on the pull request's head commit. Before, the gate re-ran when a stage finished but its result was
   recorded on the default branch, so the pull request kept the earlier failed `evaluate-signals` check.
+- A fork pull request never reaches the publisher.
 - The governance job is now `publish-merge-verdict`. It succeeds once the verdict is published; the
   verdict itself is the `stagr/governance` check.
 
 ### Upgrading from 0.3.1
 
-Run `stagr apply` to regenerate `governance.yml`. In the default branch's ruleset, replace the required
-check `evaluate-signals` with `stagr/governance`, with the Stagr GitHub App as its source.
+Run `stagr apply` to regenerate `governance.yml`, then update the default branch's ruleset to require the
+merge-gate check named in [docs/CONFIGURATION.md](docs/CONFIGURATION.md), setup step 5, in place of
+`evaluate-signals`.
 
 ## 0.3.1 — 2026-10-08
 

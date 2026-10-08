@@ -44,6 +44,7 @@ from neutral_core_tests.github_platform_renderer_tests.test_governance_structure
     test_governance_verdict_fails_closed,
     test_governance_verdict_unchanged_is_not_republished,
     test_governance_job_skips_check_suites_without_pull_request,
+    test_governance_job_never_publishes_for_fork_pull_requests,
 )
 
 __all__ = [
@@ -79,4 +80,5 @@ __all__ = [
     "test_governance_verdict_fails_closed",
     "test_governance_verdict_unchanged_is_not_republished",
     "test_governance_job_skips_check_suites_without_pull_request",
+    "test_governance_job_never_publishes_for_fork_pull_requests",
 ]

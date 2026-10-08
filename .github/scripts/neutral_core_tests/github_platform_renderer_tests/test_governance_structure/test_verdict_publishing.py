@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import yaml
 
+from stagr.core.enums import ForkPolicy
+
 from stagr.platforms.github._governance import GOVERNANCE_CHECK_RUN_NAME
 
 from neutral_core_tests.github_platform_renderer_tests.test_governance_structure.helpers import (
@@ -10,8 +12,8 @@ from neutral_core_tests.github_platform_renderer_tests.test_governance_structure
 )
 
 
-def _load_merge_verdict_job() -> dict:
-    workflow = yaml.safe_load(_render_governance_to_string())
+def _load_merge_verdict_job(fork_policy: ForkPolicy = ForkPolicy.DENY) -> dict:
+    workflow = yaml.safe_load(_render_governance_to_string(fork_policy=fork_policy))
     return workflow["jobs"]["publish-merge-verdict"]
 
 
@@ -37,9 +39,8 @@ def test_governance_verdict_fails_closed() -> None:
     job = _load_merge_verdict_job()
     evaluate_step = _find_step(job, "Evaluate stage result signals")
     publish_step = _find_step(job, "Publish the merge-gate verdict")
-    assert evaluate_step["id"] == "evaluate" and evaluate_step["continue-on-error"] is True, (
-        "a blocked evaluation must still reach the publishing step"
-    )
+    assert evaluate_step["id"] == "evaluate", "the publishing step reads the evaluation outcome by this id"
+    assert evaluate_step["continue-on-error"] is True, "a blocked evaluation must still reach the publishing step"
     assert publish_step["env"]["EVALUATION_OUTCOME"] == "${{ steps.evaluate.outcome }}"
     assert 'if [[ "${EVALUATION_OUTCOME}" == "success" ]]; then' in publish_step["run"]
     assert "else\n  verdict_conclusion=failure" in publish_step["run"], "any other outcome must publish failure"
@@ -58,3 +59,13 @@ def test_governance_job_skips_check_suites_without_pull_request() -> None:
     job_condition = _load_merge_verdict_job()["if"]
     assert "github.event_name == 'pull_request_target'" in job_condition
     assert "github.event.check_suite.pull_requests[0].number" in job_condition
+
+
+
+def test_governance_job_never_publishes_for_fork_pull_requests() -> None:
+    """A fork PR never reaches the App token or the publisher, under every fork policy."""
+    for fork_policy in ForkPolicy:
+        job_condition = _load_merge_verdict_job(fork_policy)["if"]
+        assert "github.event.pull_request.head.repo.full_name == github.repository" in job_condition, (
+            f"fork pull requests must not reach the publisher under {fork_policy.value}"
+        )

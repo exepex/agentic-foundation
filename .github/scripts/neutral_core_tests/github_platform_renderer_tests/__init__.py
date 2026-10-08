@@ -74,6 +74,7 @@ from neutral_core_tests.github_platform_renderer_tests.test_governance_structure
     test_governance_verdict_fails_closed,
     test_governance_verdict_unchanged_is_not_republished,
     test_governance_job_skips_check_suites_without_pull_request,
+    test_governance_job_never_publishes_for_fork_pull_requests,
 )
 from neutral_core_tests.github_platform_renderer_tests.test_routing_workflow import (
     test_fast_path_null_produces_normal_immediately,
@@ -157,6 +158,7 @@ GITHUB_PLATFORM_RENDERER_TESTS = [
     test_governance_verdict_fails_closed,
     test_governance_verdict_unchanged_is_not_republished,
     test_governance_job_skips_check_suites_without_pull_request,
+    test_governance_job_never_publishes_for_fork_pull_requests,
     test_fast_path_null_produces_normal_immediately,
     test_all_paths_match_classifies_as_fast,
     test_any_path_mismatch_classifies_as_normal,
@@ -239,6 +241,7 @@ __all__ = [
     "test_governance_verdict_fails_closed",
     "test_governance_verdict_unchanged_is_not_republished",
     "test_governance_job_skips_check_suites_without_pull_request",
+    "test_governance_job_never_publishes_for_fork_pull_requests",
     "test_fast_path_null_produces_normal_immediately",
     "test_all_paths_match_classifies_as_fast",
     "test_any_path_mismatch_classifies_as_normal",
