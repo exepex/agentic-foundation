@@ -3,8 +3,8 @@
 `init` asks for the one value Stagr cannot know, the numeric ID of the Stagr publisher GitHub App
 (or takes it from `--app-id`), and writes a config for the chosen profile. It never overwrites an
 existing config and never writes through a symlink. The config it writes is checked by the same
-validation `stagr plan` runs (without reading the workflow files), so `init` followed by `plan`
-always validates.
+validation `stagr plan` runs, so the config itself always validates; `init` does not read the
+workflow files, so `plan` can still refuse one Stagr did not generate (see `--force`).
 """
 from __future__ import annotations
 
