@@ -32,7 +32,7 @@ def build_config_template(profile: str, app_id: str, optional_blocks_enabled: bo
         _build_platform_section(app_id, setting_prefix),
         _build_providers_section(setting_prefix),
         _build_stages_section(setting_prefix),
-        _build_routing_section(profile, setting_prefix),
+        _build_routing_section(setting_prefix),
         _build_remediation_section(setting_prefix),
     ]
     return "\n".join(sections)
@@ -125,7 +125,7 @@ def _render_stage(stage: dict[str, Any]) -> list[str]:
     return [f"  {line}" for line in rendered]
 
 
-def _build_routing_section(profile: str, setting_prefix: str) -> str:
+def _build_routing_section(setting_prefix: str) -> str:
     # Every built-in stage, so a stage added from the catalog above is routed too (V-S17); a listed
     # stage that is not enabled is ignored.
     built_in_stage_ids = [stage["id"] for stage, _ in list_built_in_stages()]
