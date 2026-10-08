@@ -41,6 +41,13 @@ REMEDIATION_REPLY_LOGINS = ("claude", "github-actions")
 # Every automated fix commit starts with this; counting them counts the fix rounds.
 FIX_COMMIT_PREFIX = "fix(review):"
 
+# The agent may not edit or write these paths (enforced by its tool permissions, not only the
+# prompt). GitHub also refuses a push that changes workflow files from a token without the
+# `workflows` permission.
+_PROTECTED_PATH_RULES = (
+    '"Edit(./.github/**)" "Write(./.github/**)" "Edit(./.agentic/**)" "Write(./.agentic/**)"'
+)
+
 # Marks the single hand-off comment so it is posted once.
 HAND_OFF_COMMENT_MARKER = "<!-- stagr:remediation:handed-off -->"
 
@@ -62,6 +69,7 @@ def generate_remediation_workflow_yaml(
     )
     review_bots = json.dumps(sorted(set(review_bot_logins)))
     hand_off_label = render_context.trust_policy.human_merge_label
+    context_comment_actors = ",".join(["${{ github.event.review.user.login }}", *sorted(set(review_bot_logins))])
     reviewer_condition = (
         f"(contains(fromJSON('{review_bots}'), github.event.review.user.login) ||"
         " (github.event.review.user.type != 'Bot' &&"
@@ -102,6 +110,8 @@ def generate_remediation_workflow_yaml(
         '          PR_NUMBER: "${{ github.event.pull_request.number }}"\n'
         '          REVIEW_ID: "${{ github.event.review.id }}"\n'
         '          REVIEWER_TYPE: "${{ github.event.review.user.type }}"\n'
+        '          REVIEW_STATE: "${{ github.event.review.state }}"\n'
+        '          REVIEWED_COMMIT: "${{ github.event.review.commit_id }}"\n'
         f'          MAX_ROUNDS: "{remediation_policy.max_rounds}"\n'
         f"          HAND_OFF_LABEL: {json.dumps(hand_off_label)}\n"
         "        run: |\n"
@@ -111,7 +121,7 @@ def generate_remediation_workflow_yaml(
         "        if: steps.round-limit.outputs.proceed == 'true'\n"
         f"        uses: {CHECKOUT_ACTION_REF}\n"
         "        with:\n"
-        "          ref: ${{ github.event.pull_request.head.ref }}\n"
+        "          ref: ${{ github.event.review.commit_id }}\n"
         "          fetch-depth: 0\n"
         "          # The agent pushes as the Claude GitHub App, so the push starts the next review.\n"
         "          persist-credentials: false\n"
@@ -124,10 +134,13 @@ def generate_remediation_workflow_yaml(
         "        with:\n"
         f'          anthropic_api_key: "${{{{ secrets.{remediation_policy.api_key_secret} }}}}"\n'
         f"          allowed_bots: {json.dumps(','.join(sorted(set(review_bot_logins))))}\n"
+        "          # Only the reviewer's and the review backends' comments reach the agent's context.\n"
+        f"          include_comments_by_actor: {json.dumps(context_comment_actors)}\n"
         "          prompt: |\n"
         f"{_indent_block(_build_agent_prompt(), '            ')}"
         "          claude_args: >-\n"
         '            --max-turns 40 --allowedTools "Bash(git:*),Bash(gh:*),Read,Edit,Write,Glob,Grep"\n'
+        f"            --disallowedTools {_PROTECTED_PATH_RULES}\n"
     )
 
 
@@ -149,10 +162,18 @@ if grep -qxF "${{HAND_OFF_LABEL}}" <<< "${{labels}}"; then
   echo "proceed=false" >> "${{GITHUB_OUTPUT}}"
   exit 0
 fi
+live_head_sha="$(gh api "repos/${{GITHUB_REPOSITORY}}/pulls/${{PR_NUMBER}}" --jq '.head.sha')"
+if [[ "${{live_head_sha}}" != "${{REVIEWED_COMMIT}}" ]]; then
+  echo "The review is of an older commit; the review of the current head decides."
+  echo "proceed=false" >> "${{GITHUB_OUTPUT}}"
+  exit 0
+fi
 review_path="repos/${{GITHUB_REPOSITORY}}/pulls/${{PR_NUMBER}}/reviews/${{REVIEW_ID}}"
 inline_findings="$(gh api "${{review_path}}/comments" --jq 'length')"
 review_body="$(gh api "${{review_path}}" --jq '.body // ""')"
-if [[ "${{inline_findings}}" -eq 0 && ( "${{REVIEWER_TYPE}}" == "Bot" || -z "${{review_body//[[:space:]]/}}" ) ]]; then
+# Without inline comments only a human's non-approving review body can carry a finding.
+if [[ "${{inline_findings}}" -eq 0 && ( "${{REVIEWER_TYPE}}" == "Bot" || "${{REVIEW_STATE}}" == "approved"
+      || -z "${{review_body//[[:space:]]/}}" ) ]]; then
   echo "The review has no findings; nothing to fix."
   echo "proceed=false" >> "${{GITHUB_OUTPUT}}"
   exit 0
@@ -160,12 +181,15 @@ fi
 fix_rounds="$(gh api --paginate "repos/${{GITHUB_REPOSITORY}}/pulls/${{PR_NUMBER}}/commits" \\
   --jq '.[].commit.message | select(startswith("{FIX_COMMIT_PREFIX}"))' | wc -l)"
 if [[ "${{fix_rounds}}" -ge "${{MAX_ROUNDS}}" ]]; then
+  # Create the label on first use; an existing label makes this call fail harmlessly.
+  gh api --method POST "repos/${{GITHUB_REPOSITORY}}/labels" -f "name=${{HAND_OFF_LABEL}}" -f color=d93f0b \\
+    >/dev/null 2>&1 || true
   gh api --method POST "repos/${{GITHUB_REPOSITORY}}/issues/${{PR_NUMBER}}/labels" \\
     -f "labels[]=${{HAND_OFF_LABEL}}" >/dev/null
   if ! gh api --paginate "repos/${{GITHUB_REPOSITORY}}/issues/${{PR_NUMBER}}/comments" --jq '.[].body' \\
     | grep -qF '{HAND_OFF_COMMENT_MARKER}'; then
     gh api --method POST "repos/${{GITHUB_REPOSITORY}}/issues/${{PR_NUMBER}}/comments" -f body="$(printf '%s\\n\\n%s' \\
-      "**Human review needed.** ${{fix_rounds}} automated fix rounds ran (the limit is ${{MAX_ROUNDS}}) and the latest review still has findings. Automated reviews and fixes are paused: review the open threads, then resolve, fix or answer them. Remove the \\`${{HAND_OFF_LABEL}}\\` label to hand the pull request back to automation." \\
+      "**Human review needed.** ${{fix_rounds}} automated fix rounds ran (the limit is ${{MAX_ROUNDS}}) and the latest review still has findings. Automated reviews and fixes are paused: review the open threads, then resolve, fix or answer them. To hand the pull request back to automation, remove the \\`${{HAND_OFF_LABEL}}\\` label, then push a commit." \\
       '{HAND_OFF_COMMENT_MARKER}')" >/dev/null
   fi
   echo "Fix-round limit reached; handed to a human."
@@ -211,8 +235,10 @@ review ${{{{ github.event.review.id }}}}.
    Do not put the marker on a declined finding. Never resolve a thread yourself.
 
 5. If you fixed at least one finding, make one commit whose message starts with
-   "{FIX_COMMIT_PREFIX} " and names each finding fixed, then push it to
-   ${{{{ github.event.pull_request.head.ref }}}}. If you fixed nothing, do not commit.
+   "{FIX_COMMIT_PREFIX} " and names each finding fixed, then push it:
+   git push origin HEAD:${{{{ github.event.pull_request.head.ref }}}}
+   The reviewed commit is checked out, so a rejected push means the branch moved: stop and report
+   it. If you fixed nothing, do not commit.
 
 6. Finish with a short summary: each finding, fixed or declined, in one line.
 """

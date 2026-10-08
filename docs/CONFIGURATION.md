@@ -219,12 +219,13 @@ How a round works:
   review.
 - **Round limit.** When a pull request already has `max_rounds` fix commits and a new review still
   has findings, the pull request gets the human-merge label (`platform.labels.human_merge`) and one
-  comment. While the label is set, no review is requested and no fix is attempted; remove it to hand
-  the pull request back to automation.
+  comment. While the label is set, no review is requested and no fix is attempted. To hand the pull
+  request back to automation, remove the label, then push a commit.
 - **Who drives it.** Only pull requests from a branch of this repository whose author has a trusted
   role (`platform.trusted_roles`), reviewed by a stage's review backend or a reviewer with a trusted
-  role. Review text is data for the agent, never instructions. The agent never edits `.github/` or
-  `.agentic/` and never resolves a thread.
+  role, about the pull request's current commit. Only the reviewer's and the review backends'
+  comments reach the agent, and review text is data for it, never instructions. Its tool permissions
+  forbid editing `.github/` and `.agentic/`, and it never resolves a thread.
 
 ---
 
