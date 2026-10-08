@@ -81,7 +81,7 @@ def choose_profile(init_arguments: argparse.Namespace, existing_config: dict[str
 
 
 def list_settings_turned_off(existing_config: dict[str, Any], regenerated_config: dict[str, Any]) -> list[str]:
-    """Return the dotted names of active settings in ``existing_config`` the regenerated one lacks."""
+    """Return the dotted names of active settings in ``existing_config`` that ``regenerated_config`` lacks."""
     turned_off: list[str] = []
 
     def walk(existing_section: dict[str, Any], regenerated_section: dict[str, Any], prefix: str) -> None:
@@ -100,7 +100,9 @@ def read_app_id(init_arguments: argparse.Namespace, existing_config: dict[str, A
     """Return ``--app-id``, the existing config's App ID, or ask on a terminal; reject a non-numeric ID."""
     app_id = init_arguments.app_id
     if app_id is None:
-        existing_app_id = ((existing_config.get("platform") or {}).get("publisher") or {}).get("app_id")
+        platform_section = existing_config.get("platform")
+        publisher_section = platform_section.get("publisher") if isinstance(platform_section, dict) else None
+        existing_app_id = publisher_section.get("app_id") if isinstance(publisher_section, dict) else None
         app_id = None if existing_app_id is None else str(existing_app_id)
     if app_id is None:
         if not sys.stdin.isatty():
@@ -145,22 +147,40 @@ def remove_created_paths(created_paths: list[Path]) -> None:
             created_path.unlink(missing_ok=True)
 
 
+def report_settings_turned_off(existing_config: dict[str, Any], config_text: str, profile: str, app_id: str) -> None:
+    """Print which active settings `--force` commented out, and which the template does not offer."""
+    turned_off = list_settings_turned_off(existing_config, yaml.safe_load(config_text))
+    offered = yaml.safe_load(build_config_template(profile, app_id, optional_blocks_enabled=True))
+    removed = set(list_settings_turned_off(existing_config, offered))
+    commented_out = [name for name in turned_off if name not in removed]
+    if commented_out:
+        print(f"init: now commented out in the template: {', '.join(commented_out)}; uncomment what you still want")
+    if removed:
+        print(f"init: removed, not offered by the template: {', '.join(sorted(removed))}; add them back by hand if needed")
+
+
 def regenerate_config(project_root: Path, config_text: str) -> None:
     """Overwrite the existing config with ``config_text``; refuses a symlink like every other write."""
     config_artifact = RenderedArtifact(CONFIG_RELATIVE_PATH.as_posix(), config_text)
     write_artifacts(project_root, classify_artifacts(project_root, (config_artifact,)))
 
 
+def restore_config(project_root: Path, replaced_bytes: bytes | None) -> None:
+    """Put back the exact bytes `--force` replaced (line endings included), if it replaced any."""
+    if replaced_bytes is not None:
+        (project_root / CONFIG_RELATIVE_PATH).write_bytes(replaced_bytes)
+
+
 def cmd_init(init_arguments: argparse.Namespace) -> int:
     """`stagr init`: write `.agentic/config.yml`, then check it the way `stagr plan` does.
 
-    Any failure after the write removes what `init` created, or restores the config `--force`
-    replaced, so a retry starts from where the user was.
+    Any failure or cancel after the write removes what `init` created, or restores the config
+    `--force` replaced, so a retry starts from where the user was.
     """
     project_root = init_arguments.root
     config_path = CONFIG_RELATIVE_PATH.as_posix()
     created_paths: list[Path] = []
-    replaced_text: str | None = None
+    replaced_bytes: bytes | None = None
     try:
         if not project_root.is_dir():
             raise ConfigError(f"project root {project_root} is not a directory")
@@ -172,27 +192,25 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
         if config_entry.status is ArtifactStatus.NEW:
             create_config_exclusively(project_root, config_text, created_paths)
         elif init_arguments.force:
-            replaced_text = (project_root / CONFIG_RELATIVE_PATH).read_text(encoding="utf-8")
+            replaced_bytes = (project_root / CONFIG_RELATIVE_PATH).read_bytes()
             regenerate_config(project_root, config_text)
         else:
             raise existing_config_error(project_root)
         entries = validate_and_render(project_root)
     except (EOFError, KeyboardInterrupt):
         remove_created_paths(created_paths)
+        restore_config(project_root, replaced_bytes)
         print("\ninit: cancelled; nothing was written", file=sys.stderr)
         return 1
     except PIPELINE_FAILURES as failure:
         remove_created_paths(created_paths)
-        if replaced_text is not None:
-            regenerate_config(project_root, replaced_text)
+        restore_config(project_root, replaced_bytes)
         print(f"error: {failure}", file=sys.stderr)
         return 1
-    action = "regenerated" if replaced_text is not None else "wrote"
+    action = "regenerated" if replaced_bytes is not None else "wrote"
     print(f"init: {action} {config_path} under {project_root} (profile {profile}, publisher App {app_id})")
-    if replaced_text is not None:
-        turned_off = list_settings_turned_off(existing_config, yaml.safe_load(config_text))
-        if turned_off:
-            print(f"init: now commented out in the template: {', '.join(turned_off)}; uncomment what you still want")
+    if replaced_bytes is not None:
+        report_settings_turned_off(existing_config, config_text, profile, app_id)
     print(
         f"next: the config produces {len(entries)} pipeline file(s); run `stagr plan` to preview them, "
         "then `stagr apply` to write them"

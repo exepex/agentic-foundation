@@ -15,6 +15,7 @@ import yaml
 
 from stagr.core.normalize import list_built_in_stages
 
+from .config_value_hints import add_hints, build_platform_hints, build_remediation_hints, build_stage_hints
 from .profile_command import build_profile_guide
 
 # The guide every comment points to. Named, not linked: the template must not publish where the
@@ -57,11 +58,12 @@ def _settings(lines: list[str], setting_prefix: str, indent: str = "") -> str:
 
 
 def _build_platform_section(app_id: str, setting_prefix: str) -> str:
+    platform_hints = build_platform_hints()
     return (
         "# Where the pipeline runs and who may drive it.\n"
         "platform:\n"
-        "  type: github\n"
-        "  # The Stagr GitHub App that publishes each stage's result and the merge verdict.\n"
+        + "".join(f"  {line}\n" for line in add_hints(["type: github"], platform_hints))
+        + "  # The Stagr GitHub App that publishes each stage's result and the merge verdict.\n"
         "  publisher:\n"
         f"    app_id: {app_id}\n"
         + _comment(["Name of the secret holding the App's private key."], "    ")
@@ -73,9 +75,9 @@ def _build_platform_section(app_id: str, setting_prefix: str) -> str:
             ],
             "  ",
         )
-        + _settings(["same_repo_only: true"], setting_prefix, "  ")
+        + _settings(add_hints(["same_repo_only: true"], platform_hints), setting_prefix, "  ")
         + _comment(["Pull request authors whose changes Stagr reviews and fixes automatically."], "  ")
-        + _settings(["trusted_roles: [owner, member, collaborator]"], setting_prefix, "  ")
+        + _settings(add_hints(["trusted_roles: [owner, member, collaborator]"], platform_hints), setting_prefix, "  ")
         + _comment(
             [
                 "Name of the secret holding a real user's token. Stagr posts the review requests",
@@ -117,6 +119,8 @@ def _build_stages_section(setting_prefix: str) -> str:
     stage_lines = ["stages:"]
     for stage, _ in built_in_stages:
         stage_lines += _render_stage(stage)
+    # Each field's allowed values, on the first stage that sets it.
+    stage_lines = add_hints(stage_lines, build_stage_hints())
     return _comment(catalog_lines) + _settings(stage_lines, setting_prefix)
 
 
@@ -136,7 +140,7 @@ def _build_routing_section(setting_prefix: str) -> str:
             "review; every other pull request runs the `normal` stages. See `routing.fast_path`.",
         ]
     ) + _settings(
-        [
+        add_hints([
             "routing:",
             "  fast_path:",
             "    enabled: true",
@@ -144,7 +148,7 @@ def _build_routing_section(setting_prefix: str) -> str:
             "    stages:",
             "      fast: [review]",
             f"      normal: [{', '.join(built_in_stage_ids)}]",
-        ],
+        ], {"enabled": "true or false", "globs": "file patterns; ** matches any depth"}),
         setting_prefix,
     )
 
@@ -157,6 +161,9 @@ def _build_remediation_section(setting_prefix: str) -> str:
             "person. Optional under every profile; setup and limits: see `remediation`.",
         ]
     ) + _settings(
-        ["remediation:", "  provider: anthropic", "  max_rounds: 5", "  api_key_secret: ANTHROPIC_API_KEY"],
+        add_hints(
+            ["remediation:", "  provider: anthropic", "  max_rounds: 5", "  api_key_secret: ANTHROPIC_API_KEY"],
+            build_remediation_hints(),
+        ),
         setting_prefix,
     )

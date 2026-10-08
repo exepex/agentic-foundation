@@ -6,11 +6,12 @@ as described in [docs/CLI.md](docs/CLI.md).
 
 ## 0.5.2 — 2026-10-08
 
-Regenerate an existing config as the full template.
+Regenerate an existing config as the full template, and see each setting's allowed values in it.
 
-### New option ([docs/CLI.md](docs/CLI.md), `stagr init`)
+### New in `stagr init` ([docs/CLI.md](docs/CLI.md), `stagr init`)
 
 - `stagr init --force`.
+- Allowed-value comments in the template.
 
 ## 0.5.1 — 2026-10-08
 

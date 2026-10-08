@@ -41,6 +41,10 @@ class BackendRendererRegistry:
             )
         return renderer
 
+    def list_renderers(self) -> tuple["BackendRenderer", ...]:
+        """Return every registered renderer, in registration order."""
+        return tuple(self._renderers.values())
+
     def has(self, provider: str, backend: str) -> bool:
         """Return True when a renderer is registered for (provider, backend)."""
         return (provider, backend) in self._renderers

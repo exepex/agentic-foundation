@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
+from .enums import StageGate, StageKind
 from .models import ExecutionPlan, NormalizedStage
 
 
@@ -25,6 +26,9 @@ class BackendRenderer(Protocol):
 
     provider: str
     backend: str
+    # The stage kinds and gates this backend can render; the `stagr init` template lists them.
+    supported_stage_kinds: frozenset[StageKind]
+    supported_gates: frozenset[StageGate]
 
     def render(self, stage: NormalizedStage) -> ExecutionPlan:
         """Produce an ExecutionPlan for the given stage.

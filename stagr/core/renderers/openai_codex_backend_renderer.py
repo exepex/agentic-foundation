@@ -155,6 +155,8 @@ class OpenAICodexBackendRenderer:
 
     provider: str = PROVIDER_OPENAI
     backend: str = BACKEND_CODEX
+    supported_stage_kinds: frozenset[StageKind] = frozenset({StageKind.REVIEW, StageKind.SECURITY})
+    supported_gates: frozenset[StageGate] = frozenset({StageGate.BLOCKING})
 
     def render(self, stage: NormalizedStage) -> ExecutionPlan:
         """Produce an ExecutionPlan for the given review or security stage.
@@ -168,7 +170,7 @@ class OpenAICodexBackendRenderer:
         for stages configured with NON_BLOCKING gate semantics (V1 shared-scope
         constraint — see module docstring and design-doc 06).
         """
-        if stage.gate is StageGate.NON_BLOCKING:
+        if stage.gate not in self.supported_gates:
             raise ValueError(
                 f"OpenAICodexBackendRenderer V1 shared-scope NO_OPEN_THREADS mode "
                 f"requires BLOCKING gate semantics; stage '{stage.id}' has gate "
