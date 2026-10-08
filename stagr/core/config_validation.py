@@ -4,9 +4,10 @@
 
 1. the JSON Schema (``stagr/config.schema.json``);
 2. ``platform.publisher`` derivation (App id and secret NAME), when the block is present;
-3. normalization: profile (V-S01), dependency references (V-S05), acyclicity (V-S04) and
+3. V-S16 (the profile's stages stay enabled and blocking), before normalization so a disabled
+   required stage is reported as such;
+4. normalization: profile (V-S01), dependency references (V-S05), acyclicity (V-S04) and
    provider resolution;
-4. V-S16 (the profile's stages stay enabled and blocking);
 5. V-S06 (skill files exist), when a ``project_root`` is given.
 
 It has no side effects and never reads a secret value. The checks that need the renderers
@@ -80,7 +81,8 @@ def validate_config(config: dict[str, Any], project_root: Path | None = None) ->
     validate_config_schema(config)
     if "publisher" in (config.get("platform") or {}):
         derive_publisher_config(config)
-    normalize_config(config)
+    # V-S16 first: disabling a required stage would otherwise surface as a dependency error (V-S05).
     validate_profile_stage_requirements(config)
+    normalize_config(config)
     if project_root is not None:
         validate_skill_file_existence(expand_active_stages(config), project_root)

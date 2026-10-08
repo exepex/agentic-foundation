@@ -13,7 +13,7 @@ from typing import Any
 
 import yaml
 
-from stagr.core.normalize import expand_profile_defaults, list_built_in_stages
+from stagr.core.normalize import list_built_in_stages
 
 from .profile_command import build_profile_guide
 
@@ -126,13 +126,14 @@ def _render_stage(stage: dict[str, Any]) -> list[str]:
 
 
 def _build_routing_section(profile: str, setting_prefix: str) -> str:
-    profile_stage_ids = [stage["id"] for stage in expand_profile_defaults(profile, [])]
+    # Every built-in stage, so a stage added from the catalog above is routed too (V-S17); a listed
+    # stage that is not enabled is ignored.
+    built_in_stage_ids = [stage["id"] for stage, _ in list_built_in_stages()]
     return _comment(
         [
             "Fast path: a pull request that changes only files matching `globs` (for example",
             "documentation) runs only the `fast` stages, so small changes get a faster, cheaper",
-            "review; every other pull request runs the `normal` stages. See `routing.fast_path`;",
-            "after switching profile, update both lists.",
+            "review; every other pull request runs the `normal` stages. See `routing.fast_path`.",
         ]
     ) + _settings(
         [
@@ -142,7 +143,7 @@ def _build_routing_section(profile: str, setting_prefix: str) -> str:
             '    globs: ["docs/**", "**/*.md"]',
             "    stages:",
             "      fast: [review]",
-            f"      normal: [{', '.join(profile_stage_ids)}]",
+            f"      normal: [{', '.join(built_in_stage_ids)}]",
         ],
         setting_prefix,
     )

@@ -45,10 +45,8 @@ def test_every_optional_block_uncommented_still_validates() -> None:
             f"template ({profile}): the enabled variant really turns every optional block on",
         )
         check(
-            enabled["routing"]["fast_path"]["stages"]["normal"] == [
-                stage_id for stage_id in ("review", "security") if profile == "standard" or stage_id == "review"
-            ],
-            f"template ({profile}): the fast-path `normal` list names every stage of the profile",
+            enabled["routing"]["fast_path"]["stages"]["normal"] == ["review", "security"],
+            f"template ({profile}): the fast-path `normal` list names every built-in stage (V-S17)",
         )
         with starter_project(enabled_text) as project_root:
             exit_code, stdout, stderr = run_cli(["plan", "--root", str(project_root)])

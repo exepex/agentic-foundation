@@ -13,15 +13,13 @@ as described in [docs/CLI.md](docs/CLI.md).
 - `stagr init` writes the full config template: the required keys and the profile are active, every
   optional block (including `remediation`) is commented out under a short explanation. The default
   profile stays `standard`.
-- A profile's stages are now required: disabling one, or making it non-blocking, fails `plan` and
-  `apply` (V-S16 in [design-docs/07-validation.md](design-docs/07-validation.md)). Adding stages and
-  `remediation` stays allowed.
+- New static checks in [design-docs/07-validation.md](design-docs/07-validation.md): V-S16 (profile
+  stage requirements) and V-S17 (every stage is routed).
 
 ### Upgrading from 0.5.0
 
-Run `stagr plan`. A config that disabled a profile stage, or made it non-blocking, now fails with
-V-S16: turn the stage back on, or choose the profile that matches the stages you run. To see every
-option, run `stagr init` in an empty directory and compare.
+Run `stagr plan`; a config that V-S16 or V-S17 rejects names the stage to fix. To see every option,
+run `stagr init` in an empty directory and compare.
 
 ## 0.5.0 — 2026-10-08
 

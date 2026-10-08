@@ -1,6 +1,6 @@
 # Stagr Neutral Core — Validation Checklist
 
-**Status:** Static checks V-S01 to V-S09, V-S11, V-S14 and V-S16 are implemented and run in `stagr plan` and
+**Status:** Static checks V-S01 to V-S09, V-S11, V-S14, V-S16 and V-S17 are implemented and run in `stagr plan` and
 `stagr apply`. V-S15 (check stages) and the environment checks (`stagr doctor`) are not implemented yet.
 
 ---
@@ -32,7 +32,7 @@ Errors here fail `stagr plan` and prevent `stagr apply` from writing any artifac
 `validate_config` in `stagr/core/config_validation.py` is the front door for V-S01 to V-S06 and
 V-S16: schema, publisher block, profile, dependency references, cycles, profile stage requirements,
 and skill files.
-`stagr/cli/render_pipeline.py` (`load_render_inputs`) runs it, then V-S07 to V-S09 and V-S11;
+`stagr/cli/render_pipeline.py` (`load_render_inputs`) runs it, then V-S07 to V-S09, V-S17 and V-S11;
 `stagr plan` and `stagr apply` both call that one function. `stagr doctor` (issue #203) is planned
 and will call it too. The repository's own CI
 check is `python .github/scripts/validate_config.py`.
@@ -117,6 +117,14 @@ registered; run-time presence is checked by `stagr doctor`.
 Every string in `platform.trusted_roles` must be a recognised :class:`AuthorRole`
 value (``owner``, ``member``, ``collaborator``, ``contributor``). An unrecognised
 string is a hard static error.
+
+### V-S17 — Every stage is routed
+
+Implemented in `validate_every_stage_is_routed` (`stagr/core/static_validator.py`).
+
+When the fast path is on, every enabled stage must be listed in `stages.fast` or `stages.normal`. A
+stage on no route never runs and the merge gate never evaluates it, so it is a hard static error.
+With the fast path off, every stage runs on every pull request and the check does not apply.
 
 ### V-S16 — Profile stage requirements
 

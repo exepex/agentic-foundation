@@ -79,7 +79,32 @@ def test_profile_switch_is_refused_when_it_would_break_the_new_profile() -> None
         )
 
 
+def test_disabling_review_under_standard_names_the_profile_rule() -> None:
+    """V-S16 runs before the dependency checks, so the operator sees the real cause, not V-S05."""
+    exit_code, _, stderr = plan(build_config("standard", "stages:\n  - id: review\n    type: review\n    enabled: false\n"))
+    check(
+        exit_code == 1 and "V-S16" in stderr and "stage 'review' is disabled" in stderr,
+        "V-S16: disabling review under standard reports V-S16, not a dependency error",
+    )
+
+
+def test_a_stage_on_no_route_fails() -> None:
+    routing = (
+        "routing:\n  fast_path:\n    enabled: true\n    globs: [\"docs/**\"]\n"
+        "    stages: {fast: [review], normal: [review]}\n"
+    )
+    exit_code, _, stderr = plan(build_config("standard", routing))
+    check(
+        exit_code == 1 and "V-S17" in stderr and "security run on no route" in stderr,
+        "V-S17: a stage the fast path routes nowhere fails",
+    )
+    exit_code, _, _ = plan(build_config("standard", routing.replace("normal: [review]", "normal: [review, security]")))
+    check(exit_code == 0, "V-S17: routing every stage is valid")
+
+
 PROFILE_REQUIREMENTS_TESTS = (
+    test_disabling_review_under_standard_names_the_profile_rule,
+    test_a_stage_on_no_route_fails,
     test_minimal_with_remediation_is_valid,
     test_minimal_may_add_a_stage,
     test_standard_with_remediation_is_valid,
