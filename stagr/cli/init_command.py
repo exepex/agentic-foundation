@@ -16,6 +16,7 @@ from stagr.core.publisher import derive_publisher_config
 
 from .artifact_files import ArtifactStatus, classify_artifacts
 from .plan_apply import PIPELINE_FAILURES, run_pipeline
+from .profile_command import build_profile_guide
 from .render_pipeline import CONFIG_RELATIVE_PATH
 
 STARTER_PROFILES = ("minimal", "standard")
@@ -46,6 +47,7 @@ def build_starter_config(profile: str, app_id: str) -> str:
     """Return the starter config text for ``profile`` and the publisher App ``app_id``."""
     return (
         "version: 2\n"
+        f"{build_profile_guide()}"
         f"profile: {profile}\n"
         "platform:\n"
         "  type: github\n"

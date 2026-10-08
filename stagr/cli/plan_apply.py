@@ -1,8 +1,9 @@
 """`stagr plan` and `stagr apply`: one pipeline, two thin commands.
 
 Both commands call ``run_pipeline`` and differ only in the last step: ``plan`` prints what would be
-written, ``apply`` writes it and then prints the same list. Everything up to that step (load,
-validate, render, compare with disk) is shared, so an error that stops one stops the other.
+written or removed, ``apply`` writes and removes those files and then prints the same list.
+Everything up to that step (load, validate, render, compare with disk, find stale generated files)
+is shared, so an error that stops one stops the other.
 """
 from __future__ import annotations
 
@@ -13,8 +14,14 @@ from pathlib import Path
 from stagr.core.backend_renderer_registry import BackendRendererNotFoundError
 from stagr.core.models import ConfigError
 
-from .artifact_files import ArtifactEntry, ArtifactWriteError, classify_artifacts, write_artifacts
-from .render_pipeline import load_render_inputs, render_artifacts
+from .artifact_files import (
+    ArtifactEntry,
+    ArtifactWriteError,
+    classify_artifacts,
+    find_stale_artifacts,
+    write_artifacts,
+)
+from .render_pipeline import PLATFORM_RENDERER_CLASSES, load_render_inputs, render_artifacts
 
 # Every way the shared pipeline reports a bad config or an unwritable target. ValueError covers
 # ConfigSyntaxError, ConfigVersionError, ConfigSchemaError, StaticValidationError and the renderers'
@@ -40,11 +47,26 @@ def add_project_root_argument(command_parser: argparse.ArgumentParser) -> None:
 
 
 def run_pipeline(project_root: Path) -> tuple[ArtifactEntry, ...]:
-    """Load, validate, render, and compare with disk. Prints warnings; writes nothing."""
+    """Load, validate, render, and compare with disk. Prints warnings; writes nothing.
+
+    Returns one entry per produced file, then one ``REMOVE`` entry per generated file the config no
+    longer produces.
+    """
     render_inputs = load_render_inputs(project_root)
     for warning in render_inputs.warnings:
         print(f"warning: {warning}", file=sys.stderr)
-    return classify_artifacts(project_root, render_artifacts(render_inputs))
+    artifacts = render_artifacts(render_inputs)
+    platform_renderer_class = PLATFORM_RENDERER_CLASSES[render_inputs.render_context.platform]
+    produced_entries = classify_artifacts(
+        project_root, artifacts, platform_renderer_class.GENERATED_FILE_HEADER
+    )
+    stale_entries = find_stale_artifacts(
+        project_root,
+        platform_renderer_class.ARTIFACT_DIRECTORY,
+        platform_renderer_class.GENERATED_FILE_HEADER,
+        frozenset(artifact.path for artifact in artifacts),
+    )
+    return (*produced_entries, *stale_entries)
 
 
 def format_entries(entries: tuple[ArtifactEntry, ...]) -> str:

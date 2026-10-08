@@ -109,6 +109,24 @@ _PROFILE_STAGE_DEFAULTS: dict[str, list[dict[str, Any]]] = {
     "custom": [],
 }
 
+PROFILE_NAMES: tuple[str, ...] = tuple(_PROFILE_STAGE_DEFAULTS)
+
+
+def describe_profile(profile_name: str) -> str:
+    """Return a one-line summary of the stages ``profile_name`` expands to, built from its data.
+
+    Example: ``"stages: review, security (after review)"``. Because the text is derived from
+    ``_PROFILE_STAGE_DEFAULTS``, it cannot drift from what the profile really does.
+    """
+    profile_stages = _PROFILE_STAGE_DEFAULTS[profile_name]
+    if not profile_stages:
+        return "no built-in stages; you list every stage under `stages`"
+    stage_descriptions = [
+        stage["id"] + (f" (after {', '.join(stage['depends_on'])})" if stage["depends_on"] else "")
+        for stage in profile_stages
+    ]
+    return "stages: " + ", ".join(stage_descriptions)
+
 
 def expand_profile_defaults(
     profile_name: str,

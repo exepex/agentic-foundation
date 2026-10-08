@@ -20,7 +20,7 @@ from .harness import (
     starter_project,
 )
 
-ENTRY_LINE_PATTERN = re.compile(r"^\s+(new|changed|unchanged)\s+(\S+)\s+(\d+) bytes\s+sha256:([0-9a-f]+)$")
+ENTRY_LINE_PATTERN = re.compile(r"^\s+(new|changed|unchanged|remove)\s+(\S+)\s+(\d+) bytes\s+sha256:([0-9a-f]+)$")
 
 
 def parse_entries(stdout: str) -> dict[str, tuple[str, int, str]]:
@@ -210,14 +210,16 @@ def test_changed_file_is_reported_and_rewritten() -> None:
     with dogfood_project() as project_root:
         run_cli(["apply", "--root", str(project_root)])
         routing_file = project_root / ".github" / "workflows" / "routing.yml"
-        routing_file.write_text("edited by hand\n", encoding="utf-8")
+        generated_header = routing_file.read_text(encoding="utf-8").split("\n", 1)[0]
+        edited_text = f"{generated_header}\nedited by hand\n"
+        routing_file.write_text(edited_text, encoding="utf-8")
         hand_written_file = project_root / ".github" / "workflows" / "hand-written.yml"
         hand_written_file.write_text("name: hand written\n", encoding="utf-8")
         _, plan_stdout, _ = run_cli(["plan", "--root", str(project_root)])
         check(parse_entries(plan_stdout)[".github/workflows/routing.yml"][0] == "changed", "plan: reports a hand-edited file as changed")
-        check(routing_file.read_text(encoding="utf-8") == "edited by hand\n", "plan: does not rewrite it")
+        check(routing_file.read_text(encoding="utf-8") == edited_text, "plan: does not rewrite it")
         run_cli(["apply", "--root", str(project_root)])
-        check(routing_file.read_text(encoding="utf-8") != "edited by hand\n", "apply: rewrites the changed file")
+        check(routing_file.read_text(encoding="utf-8") != edited_text, "apply: rewrites the changed file")
         check(hand_written_file.read_text(encoding="utf-8") == "name: hand written\n", "apply: never touches other workflows")
 
 

@@ -86,8 +86,8 @@ can bend the toolkit to how they deploy and host:
    Stagr, so no other file is needed. The full field reference
    (including how to override a skill), provider→secret mapping, and troubleshooting are in
    **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**.
-4. Run `stagr plan` in the repo root to validate the config and list the files it produces (nothing is
-   written), then `stagr apply` to write those same files under `.github/workflows/`.
+4. Run `stagr plan` in the repo root to validate the config and list the changes it would make under
+   `.github/workflows/` (nothing is written), then `stagr apply` to make exactly those changes.
 
 The commands that exist today, and the planned ones, are listed in [docs/CLI.md](docs/CLI.md).
 

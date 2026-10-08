@@ -65,7 +65,7 @@ platform: { type: github, publisher: { app_id: 123456 } }
 ### `profile`
 | Field | Meaning |
 |---|---|
-| `profile` | Onboarding shortcut that expands to a default stage graph: `minimal` (a code `review` stage), `standard` (`review` + `security`, where `security` waits for `review`), or `custom` (no stages — you define them all under `stages`). Default `standard`. Stages you list under `stages` are merged on top (same id overrides). |
+| `profile` | Onboarding shortcut that expands to a default stage graph: `minimal` (a code `review` stage), `standard` (`review` + `security`, where `security` waits for `review`), or `custom` (no stages — you define them all under `stages`). Default `standard`. Stages you list under `stages` are merged on top (same id overrides). List or switch profiles with `stagr profile` ([CLI.md](CLI.md)). |
 
 ### `platform`
 | Field | Meaning |
@@ -236,9 +236,9 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 3. Run `stagr init` ([CLI.md](CLI.md)) to start `.agentic/config.yml` (section 3). Add `stages` only
    for finer control. The shipped skills need no copy;
    see the `skill` field in section 3 for how a skill is found and overridden.
-4. Run `stagr plan` to validate the config and list the workflow files it produces (it writes
-   nothing), then `stagr apply` to write them into `.github/workflows/`. Commit the result. See
-   [CLI.md](CLI.md).
+4. Run `stagr plan` to validate the config and list the workflow files it would write or remove (it
+   writes nothing), then `stagr apply` to make those changes in `.github/workflows/`. Commit the
+   result. See [CLI.md](CLI.md).
 
 ---
 

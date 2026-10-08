@@ -14,7 +14,8 @@ two phases:
 A renderer is a pure function of its inputs: it returns ``RenderedArtifact``
 values (repository-relative path plus content) and never touches the file
 system. ``stagr plan`` lists the artifacts; ``stagr apply`` writes the same
-artifacts, so the two commands cannot differ.
+artifacts (and removes generated files the config no longer produces), so the
+two commands cannot differ.
 """
 from __future__ import annotations
 

@@ -16,9 +16,9 @@ and **environment** (requires network access, credentials, and a configured plat
 
 | Command | What it checks | Requires environment |
 |---|---|---|
-| `stagr plan` | Static validation + lists planned artifacts (what would be written) | No |
+| `stagr plan` | Static validation + lists planned artifacts (what would be written or removed) | No |
 | `stagr doctor` | Static validation + environment readiness | Yes |
-| `stagr apply` | Static validation, then renders and writes artifacts | No (but `doctor` should pass first) |
+| `stagr apply` | Static validation, then renders and writes artifacts, and removes stale generated ones | No (but `doctor` should pass first) |
 
 `stagr plan` and `stagr apply` share the same static validation pass. Any static error
 that fails `plan` also fails `apply`.

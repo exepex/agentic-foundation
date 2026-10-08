@@ -5,8 +5,9 @@ renderers (`stagr/platforms/`). The commands:
 
     stagr help     # list commands, or `stagr help <command>` / `stagr <command> help`
     stagr init     # write a starter .agentic/config.yml (asks for the publisher App ID)
-    stagr plan     # validate the config and list the files it produces; writes nothing
-    stagr apply    # validate the config and write those same files
+    stagr profile  # list the profiles, or `stagr profile <name>` to switch the config
+    stagr plan     # validate the config and list the files to write or remove; writes nothing
+    stagr apply    # validate the config and make those same changes
 
 `plan` and `apply` share one pipeline (`render_pipeline.py`) and differ only in the last step.
 

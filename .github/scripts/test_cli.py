@@ -13,10 +13,12 @@ from cli_tests.harness import failures
 from cli_tests.help_tests import HELP_TESTS
 from cli_tests.init_tests import INIT_TESTS
 from cli_tests.plan_apply_tests import PLAN_APPLY_TESTS
+from cli_tests.profile_tests import PROFILE_TESTS
+from cli_tests.prune_tests import PRUNE_TESTS
 
 
 def main() -> int:
-    for test_function in (*HELP_TESTS, *INIT_TESTS, *PLAN_APPLY_TESTS):
+    for test_function in (*HELP_TESTS, *INIT_TESTS, *PLAN_APPLY_TESTS, *PRUNE_TESTS, *PROFILE_TESTS):
         test_function()
     if failures:
         print(f"\n{len(failures)} test failure(s).", file=sys.stderr)

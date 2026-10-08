@@ -6,6 +6,7 @@ import sys
 
 from .init_command import add_init_arguments, cmd_init
 from .plan_apply import add_project_root_argument, cmd_apply, cmd_plan
+from .profile_command import add_profile_arguments, cmd_profile
 
 
 def _subparser_choices(parser: argparse.ArgumentParser) -> dict[str, argparse.ArgumentParser]:
@@ -44,14 +45,20 @@ def build_parser() -> argparse.ArgumentParser:
     add_init_arguments(init_parser)
     init_parser.set_defaults(func=cmd_init)
 
+    profile_parser = subparsers.add_parser(
+        "profile", help="list the profiles, or switch the config to another one"
+    )
+    add_profile_arguments(profile_parser)
+    profile_parser.set_defaults(func=cmd_profile)
+
     plan_parser = subparsers.add_parser(
-        "plan", help="validate the config and list the files apply would write; writes nothing"
+        "plan", help="validate the config and list the files apply would write or remove; writes nothing"
     )
     add_project_root_argument(plan_parser)
     plan_parser.set_defaults(func=cmd_plan)
 
     apply_parser = subparsers.add_parser(
-        "apply", help="validate the config and write the generated files"
+        "apply", help="validate the config, write the generated files, remove stale generated ones"
     )
     add_project_root_argument(apply_parser)
     apply_parser.set_defaults(func=cmd_apply)
