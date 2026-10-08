@@ -61,6 +61,7 @@ include = [
   "stagr/",
   "docs/",
   "README.md",
+  "CHANGELOG.md",
   "AGENTS.md",
   "CLAUDE.md",
   "LICENSE",
