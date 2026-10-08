@@ -133,7 +133,7 @@ authorization errors):
 
 | Permission | Access | Why |
 |---|---|---|
-| Checks | Read and write | Create and update the stage Check Runs; the merge gate reads them and publishes `stagr/governance` |
+| Checks | Read and write | Create and update the stage Check Runs; the merge gate reads them and publishes its verdict (setup step 5, section 4) |
 | Pull requests | Read | Read pull requests, changed files and review threads |
 | Issues | Read | Read pull request comments, where review backends post their results |
 | Metadata | Read | Granted automatically |
