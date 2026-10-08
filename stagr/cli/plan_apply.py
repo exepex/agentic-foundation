@@ -1,8 +1,9 @@
 """`stagr plan` and `stagr apply`: one pipeline, two thin commands.
 
 Both commands call ``run_pipeline`` and differ only in the last step: ``plan`` prints what would be
-written, ``apply`` writes it and then prints the same list. Everything up to that step (load,
-validate, render, compare with disk) is shared, so an error that stops one stops the other.
+written or removed, ``apply`` writes and removes those files and then prints the same list.
+Everything up to that step (load, validate, render, compare with disk, find stale generated files)
+is shared, so an error that stops one stops the other.
 """
 from __future__ import annotations
 

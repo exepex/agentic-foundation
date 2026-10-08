@@ -71,6 +71,16 @@ def test_profile_rejects_a_switch_that_does_not_validate() -> None:
         check(read_config(project_root) == original_text, "profile: a failed switch restores the config")
 
 
+def test_profile_refuses_a_key_spelling_it_cannot_rewrite() -> None:
+    with initialized_project() as project_root:
+        config_path = project_root / CONFIG_FILE_PATH
+        quoted_text = read_config(project_root).replace("\nprofile: standard\n", '\n"profile": standard\n')
+        config_path.write_text(quoted_text, encoding="utf-8")
+        exit_code, _, stderr = run_cli(["profile", "minimal", "--root", str(project_root)])
+        check(exit_code == 1 and "plain top-level" in stderr, "profile: a key it cannot rewrite exits 1, not a false success")
+        check(read_config(project_root) == quoted_text, "profile: the config is restored when the switch did not take")
+
+
 def test_profile_without_a_config_fails() -> None:
     with tempfile.TemporaryDirectory() as temporary_directory:
         exit_code, _, stderr = run_cli(["profile", "--root", temporary_directory])
@@ -83,5 +93,6 @@ PROFILE_TESTS = (
     test_profile_switches_only_the_profile_line,
     test_profile_switch_then_apply_removes_the_dropped_stage,
     test_profile_rejects_a_switch_that_does_not_validate,
+    test_profile_refuses_a_key_spelling_it_cannot_rewrite,
     test_profile_without_a_config_fails,
 )

@@ -124,16 +124,17 @@ stagr apply             # writes the changes and deletes stage-security.yml
 ### `stagr plan` and `stagr apply`
 
 ```bash
-stagr plan  [--root DIR]    # validate, render, list the files; writes nothing
-stagr apply [--root DIR]    # validate, render, write those same files
+stagr plan  [--root DIR]    # validate, render, list the changes; writes nothing
+stagr apply [--root DIR]    # validate, render, make those same changes
 ```
 
 `--root` is the project root (default: the current directory). Both commands read
-`<root>/.agentic/config.yml`, and `apply` writes under `<root>`.
+`<root>/.agentic/config.yml`, and `apply` writes and removes files under `<root>`.
 
 They run **one shared pipeline**: read the config, run the static checks (the list and their status
-are in [design-docs/07-validation.md](../design-docs/07-validation.md)), render every file, compare with what is on disk. Only the last step differs — `plan` prints
-the list, `apply` writes it and prints the same list. So a config that `plan` accepts is a config
+are in [design-docs/07-validation.md](../design-docs/07-validation.md)), render every file, compare with what is on disk, and find generated files the config no
+longer produces. Only the last step differs — `plan` prints the list, `apply` makes those changes
+(write or remove) and prints the same list. So a config that `plan` accepts is a config
 `apply` accepts (`apply` can still fail on the file system, for example a read-only directory), and
 an invalid config fails both with the same message and exit code 1. `apply` renders everything
 before it writes anything, so a validation error never leaves a half-written set.
@@ -169,8 +170,9 @@ These do not exist yet. They are described here so the design is visible; do not
 
 - **`stagr doctor`** — validate the config and list the secret **names** the pipeline needs.
 
-Renderers only return the files they would produce and never write them; `plan` lists that result and
-`apply` writes it, so what `plan` shows is what `apply` writes.
+Renderers only return the files they would produce and never write them; `plan` lists those files plus
+the stale generated files to remove, and `apply` makes exactly those changes, so what `plan` shows is
+what `apply` does.
 
 ## Design rules
 

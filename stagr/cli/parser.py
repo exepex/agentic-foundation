@@ -52,13 +52,13 @@ def build_parser() -> argparse.ArgumentParser:
     profile_parser.set_defaults(func=cmd_profile)
 
     plan_parser = subparsers.add_parser(
-        "plan", help="validate the config and list the files apply would write; writes nothing"
+        "plan", help="validate the config and list the files apply would write or remove; writes nothing"
     )
     add_project_root_argument(plan_parser)
     plan_parser.set_defaults(func=cmd_plan)
 
     apply_parser = subparsers.add_parser(
-        "apply", help="validate the config and write the generated files"
+        "apply", help="validate the config, write the generated files, remove stale generated ones"
     )
     add_project_root_argument(apply_parser)
     apply_parser.set_defaults(func=cmd_apply)

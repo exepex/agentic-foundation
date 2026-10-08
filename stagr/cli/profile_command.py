@@ -77,6 +77,11 @@ def switch_profile(project_root: Path, config_text: str, profile_name: str) -> i
     updated_artifact = RenderedArtifact(config_path, set_profile_line(config_text, profile_name))
     write_artifacts(project_root, classify_artifacts(project_root, (updated_artifact,)))
     try:
+        written_profile = parse_config(project_root / CONFIG_RELATIVE_PATH).get("profile")
+        if written_profile != profile_name:
+            raise ConfigError(
+                "could not set the profile: write the key as a plain top-level `profile: <name>` line"
+            )
         entries = run_pipeline(project_root)
     except PIPELINE_FAILURES:
         original_artifact = RenderedArtifact(config_path, config_text)
