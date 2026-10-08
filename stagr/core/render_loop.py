@@ -27,6 +27,14 @@ _TRUSTED_COMMENTER_TOKEN_ALIAS = "TRUSTED_COMMENTER_TOKEN"
 _DEFAULT_TRUSTED_COMMENTER_SECRET = "REMEDIATION_TOKEN"
 
 
+def resolve_platform_token_secret(provider_config: dict) -> str:
+    """Return the secret name of the platform token: ``platform.auth.token_secret`` or the default."""
+    platform_token_secret: str | None = (
+        provider_config.get("platform", {}).get("auth", {}).get("token_secret")
+    )
+    return platform_token_secret or _DEFAULT_TRUSTED_COMMENTER_SECRET
+
+
 def _resolve_secret_aliases(
     plan: ExecutionPlan,
     provider_name: str,
@@ -52,12 +60,6 @@ def _resolve_secret_aliases(
         .get(provider_name, {})
     )
     provider_secrets: dict[str, str] = provider_entry.get("secrets", {})
-    platform_token_secret: str | None = (
-        provider_config
-        .get("platform", {})
-        .get("auth", {})
-        .get("token_secret")
-    )
 
     resolved_secret_refs: list[SecretRef] = []
     for secret_ref in plan.required_secrets:
@@ -66,7 +68,7 @@ def _resolve_secret_aliases(
 
         # 2. Semantic mapping: TRUSTED_COMMENTER_TOKEN → platform.auth.token_secret or default.
         if env_name is None and secret_ref.alias == _TRUSTED_COMMENTER_TOKEN_ALIAS:
-            env_name = platform_token_secret or _DEFAULT_TRUSTED_COMMENTER_SECRET
+            env_name = resolve_platform_token_secret(provider_config)
 
         # 3. Convention fallback: alias is the platform secret name.
         if env_name is None:

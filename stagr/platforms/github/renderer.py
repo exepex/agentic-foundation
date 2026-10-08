@@ -78,6 +78,10 @@ from stagr.platforms.github.stage_signal_config import (
     build_stage_signal_config,
 )
 from stagr.platforms.github.stage_workflow import build_on_section, build_stage_workflow_yaml
+from stagr.platforms.github.thread_resolution_workflow import (
+    THREAD_RESOLUTION_WORKFLOW_FILENAME,
+    generate_thread_resolution_workflow_yaml,
+)
 
 
 WORKFLOW_DIRECTORY = ".github/workflows"
@@ -116,6 +120,9 @@ class GitHubPlatformRenderer:
     Phase 2b (render_governance): returns the merge-gate workflow artifact
     ``.github/workflows/governance.yml``.
 
+    Phase 2c (render_thread_resolution): returns the workflow artifact
+    ``.github/workflows/resolve-outdated-threads.yml`` that resolves outdated finding threads.
+
     No method writes to the file system.
     """
 
@@ -134,6 +141,7 @@ class GitHubPlatformRenderer:
         "stage-*.yml",
         ROUTING_WORKFLOW_FILENAME,
         GOVERNANCE_WORKFLOW_FILENAME,
+        THREAD_RESOLUTION_WORKFLOW_FILENAME,
     )
     GENERATED_WORKFLOW_NAME_PREFIX = 'name: "Stagr '
 
@@ -198,6 +206,7 @@ class GitHubPlatformRenderer:
                 provenance=StageResultProvenance(
                     publisher_identity=self._publisher_app_id,
                 ),
+                finding_author=plan.gate_disposition.scope.created_by if plan.gate_disposition.scope else None,
             ),
             artifact=build_generated_artifact(f"{WORKFLOW_DIRECTORY}/stage-{stage.id}.yml", workflow_yaml),
         )
@@ -252,6 +261,27 @@ class GitHubPlatformRenderer:
 
         return build_generated_artifact(
             f"{WORKFLOW_DIRECTORY}/{GOVERNANCE_WORKFLOW_FILENAME}", governance_yaml
+        )
+
+    def render_thread_resolution(
+        self,
+        result_specs: tuple[StageResultSpec, ...],
+        render_context: RenderContext,
+        token_secret: str,
+    ) -> RenderedArtifact | None:
+        """Phase 2c: return ``.github/workflows/resolve-outdated-threads.yml``, or None.
+
+        The workflow resolves outdated review threads written only by the stages' review
+        backends. None when no stage reads review threads, so there is nothing to resolve.
+        """
+        finding_authors = tuple(
+            result_spec.finding_author for result_spec in result_specs if result_spec.finding_author
+        )
+        if not finding_authors:
+            return None
+        workflow_yaml = generate_thread_resolution_workflow_yaml(finding_authors, token_secret, render_context)
+        return build_generated_artifact(
+            f"{WORKFLOW_DIRECTORY}/{THREAD_RESOLUTION_WORKFLOW_FILENAME}", workflow_yaml
         )
 
     # ------------------------------------------------------------------

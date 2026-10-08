@@ -22,7 +22,7 @@ you can rename them in the config (see below).
 
 | Purpose | Name | Type | Required when | Scope / notes |
 |---|---|---|---|---|
-| Codex comment-trigger / PR publication | `REMEDIATION_TOKEN` | **Fine-grained PAT (real user)** | a stage uses Codex's `@codex` comment flow | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
+| Codex comment-trigger, PR publication, resolving outdated review threads | `REMEDIATION_TOKEN` | **Fine-grained PAT (real user)** | a stage uses Codex's `@codex` comment flow | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
 | Stagr GitHub App private key | `STAGR_APP_PRIVATE_KEY` | GitHub App private key | you configure `platform.publisher` | See [Publisher](#publisher-stagr-github-app). |
 | GitHub API (PR reads) | `GITHUB_TOKEN` | Provided by Actions | always | No action needed; each generated workflow sets its own least-privilege permissions. |
 

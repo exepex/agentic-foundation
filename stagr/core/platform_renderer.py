@@ -63,3 +63,12 @@ class PlatformRenderer(Protocol):
     ) -> RenderedArtifact:
         """Phase 2b: return the governance artifact built from collected StageResultSpecs."""
         ...
+
+    def render_thread_resolution(
+        self,
+        result_specs: tuple[StageResultSpec, ...],
+        render_context: RenderContext,
+        token_secret: str,
+    ) -> RenderedArtifact | None:
+        """Phase 2c: return the artifact resolving outdated finding threads, or None when no stage has any."""
+        ...

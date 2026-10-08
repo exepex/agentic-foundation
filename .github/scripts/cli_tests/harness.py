@@ -26,6 +26,7 @@ EXPECTED_DOGFOOD_WORKFLOW_PATHS = (
     ".github/workflows/stage-security.yml",
     ".github/workflows/routing.yml",
     ".github/workflows/governance.yml",
+    ".github/workflows/resolve-outdated-threads.yml",
 )
 
 

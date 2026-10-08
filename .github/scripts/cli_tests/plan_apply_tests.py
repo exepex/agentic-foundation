@@ -88,7 +88,7 @@ def test_plan_lists_the_files_and_writes_nothing() -> None:
         check(exit_code == 0 and stderr == "", "plan: a valid config exits 0 without errors")
         check(
             tuple(parse_entries(stdout)) == EXPECTED_DOGFOOD_WORKFLOW_PATHS,
-            "plan: lists one file per enabled stage, then routing and governance",
+            "plan: lists one file per enabled stage, then routing, governance and thread resolution",
         )
         check(snapshot_tree(project_root) == tree_before, "plan: no file is created or changed")
         check(not (project_root / ".github").exists(), "plan: the output directory is not even created")
@@ -193,7 +193,7 @@ def test_disabled_stage_gets_no_workflow() -> None:
         run_cli(["apply", "--root", str(project_root)])
         workflow_names = sorted(path.name for path in (project_root / ".github" / "workflows").iterdir())
         check(
-            workflow_names == ["governance.yml", "routing.yml", "stage-review.yml"],
+            workflow_names == ["governance.yml", "resolve-outdated-threads.yml", "routing.yml", "stage-review.yml"],
             "apply: only enabled stages get a stage workflow",
         )
 
@@ -250,7 +250,7 @@ def test_the_documented_minimal_config_plans_cleanly() -> None:
     with starter_project(minimal_config_text) as project_root:
         exit_code, stdout, stderr = run_cli(["plan", "--root", str(project_root)])
         check(exit_code == 0 and stderr == "", "docs: the documented minimal config plans cleanly")
-        check(len(parse_entries(stdout)) == 4, "docs: the standard profile plans two stage workflows, routing and governance")
+        check(len(parse_entries(stdout)) == 5, "docs: the standard profile plans two stage workflows, routing, governance and thread resolution")
 
 
 def test_the_repository_config_plans_cleanly() -> None:

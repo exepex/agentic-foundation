@@ -42,7 +42,7 @@ def test_init_writes_a_config_that_plan_accepts() -> None:
         check(f"app_id: {PUBLISHER_APP_ID}" in config_text, "init: the config carries the App ID")
         check("stagr plan" in stdout, "init: tells the user to run `stagr plan` next")
         plan_exit_code, plan_stdout, _ = run_cli(["plan", "--root", str(project_root)])
-        check(plan_exit_code == 0 and "4 file(s)" in plan_stdout, "init: `stagr plan` accepts the standard starter config")
+        check(plan_exit_code == 0 and "5 file(s)" in plan_stdout, "init: `stagr plan` accepts the standard starter config")
 
 
 def test_init_minimal_profile() -> None:
@@ -51,7 +51,7 @@ def test_init_minimal_profile() -> None:
             ["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID, "--profile", "minimal"]
         )
         plan_exit_code, plan_stdout, _ = run_cli(["plan", "--root", str(project_root)])
-        check(exit_code == 0 and plan_exit_code == 0 and "3 file(s)" in plan_stdout, "init: the minimal profile plans 3 files")
+        check(exit_code == 0 and plan_exit_code == 0 and "4 file(s)" in plan_stdout, "init: the minimal profile plans 4 files")
 
 
 def test_init_asks_for_the_app_id_on_a_terminal() -> None:

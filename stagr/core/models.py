@@ -267,6 +267,9 @@ class StageResultSpec:
     signal_kind: StageResultSignalKind
     signal_selector: str              # platform-specific locator
     provenance: StageResultProvenance
+    # Login of the review backend whose threads are the stage's findings; None when the stage's
+    # gate does not read review threads. Its outdated threads are resolved automatically.
+    finding_author: str | None = None
 
 
 @dataclass(frozen=True)
