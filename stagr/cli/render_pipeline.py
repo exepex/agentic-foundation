@@ -3,8 +3,8 @@
 ``load_render_inputs`` reads ``<project_root>/.agentic/config.yml`` and runs every static check
 (V-S01 to V-S09, plus the V-S11 warning); it returns everything the renderers need.
 ``render_artifacts`` turns those inputs into the files the config produces. Neither function writes
-anything, so ``plan`` lists the result and ``apply`` writes the same result: the two commands
-cannot differ.
+anything; ``plan_apply.run_pipeline`` adds the stale generated files to remove, so ``plan`` lists
+the changes and ``apply`` makes the same changes: the two commands cannot differ.
 
 This module sits above ``stagr.core`` and ``stagr.platforms`` because it is the one place that
 wires the neutral core to a platform renderer.

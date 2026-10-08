@@ -108,10 +108,22 @@ def test_a_workflow_stagr_did_not_generate_is_never_overwritten() -> None:
         )
 
 
+def test_crlf_checkouts_are_still_recognised_as_generated() -> None:
+    with dogfood_project() as project_root:
+        run_cli(["apply", "--root", str(project_root)])
+        for workflow_path in EXPECTED_DOGFOOD_WORKFLOW_PATHS:
+            workflow_file = project_root / workflow_path
+            workflow_file.write_bytes(workflow_file.read_bytes().replace(b"\n", b"\r\n"))
+        for command in ("plan", "apply"):
+            exit_code, _, stderr = run_cli([command, "--root", str(project_root)])
+            check(exit_code == 0 and stderr == "", f"{command}: generated files checked out with CRLF are still Stagr's")
+
+
 PRUNE_TESTS = (
     test_generated_files_start_with_the_ownership_header,
     test_plan_lists_and_apply_removes_a_file_the_config_no_longer_produces,
     test_a_workflow_without_the_header_is_never_removed,
     test_a_symlinked_generated_file_is_never_removed,
     test_a_workflow_stagr_did_not_generate_is_never_overwritten,
+    test_crlf_checkouts_are_still_recognised_as_generated,
 )
