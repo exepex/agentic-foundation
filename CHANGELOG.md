@@ -4,6 +4,23 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
+## 0.5.1 — 2026-10-08
+
+`stagr init` writes the whole configuration, and a profile's stages become a required minimum.
+
+### Changed behavior
+
+- `stagr init` writes the full config template: the required keys and the profile are active, every
+  optional block (including `remediation`) is commented out under a short explanation. The default
+  profile stays `standard`.
+- New static checks in [design-docs/07-validation.md](design-docs/07-validation.md): V-S16 (profile
+  stage requirements) and V-S17 (every stage is routed).
+
+### Upgrading from 0.5.0
+
+Run `stagr plan`; a config that V-S16 or V-S17 rejects names the stage to fix. To see every option,
+run `stagr init` in an empty directory and compare.
+
 ## 0.5.0 — 2026-10-08
 
 Review findings are judged before they are fixed, finished threads are resolved automatically, and

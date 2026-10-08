@@ -32,6 +32,7 @@ from stagr.core.renderers.openai_codex_backend_renderer import OpenAICodexBacken
 from stagr.core.static_validator import (
     validate_backend_renderer_availability,
     validate_platform_invocation_compatibility,
+    validate_every_stage_is_routed,
     validate_route_dependency_closure,
 )
 from stagr.platforms.github.renderer import GitHubPlatformRenderer
@@ -108,6 +109,7 @@ def load_render_inputs(project_root: Path) -> RenderInputs:
     )
     routing_policy = derive_routing_policy(raw_config)
     validate_route_dependency_closure(routing_policy, normalized_stages)
+    validate_every_stage_is_routed(routing_policy, normalized_stages)
 
     trust_policy = derive_trust_policy(raw_config)
     render_context = RenderContext(

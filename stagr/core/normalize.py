@@ -128,6 +128,21 @@ def describe_profile(profile_name: str) -> str:
     return "stages: " + ", ".join(stage_descriptions)
 
 
+def list_built_in_stages() -> list[tuple[dict[str, Any], tuple[str, ...]]]:
+    """Return every built-in stage definition once, with the profiles that turn it on.
+
+    Built from ``_PROFILE_STAGE_DEFAULTS``, so the stage catalog ``stagr init`` writes cannot drift
+    from what the profiles really expand to.
+    """
+    stages_by_id: dict[str, dict[str, Any]] = {}
+    profiles_by_id: dict[str, list[str]] = {}
+    for profile_name, profile_stages in _PROFILE_STAGE_DEFAULTS.items():
+        for stage in profile_stages:
+            stages_by_id.setdefault(stage["id"], stage)
+            profiles_by_id.setdefault(stage["id"], []).append(profile_name)
+    return [(stages_by_id[stage_id], tuple(profiles_by_id[stage_id])) for stage_id in stages_by_id]
+
+
 def expand_profile_defaults(
     profile_name: str,
     explicit_stages: list[dict[str, Any]],

@@ -144,3 +144,24 @@ def validate_route_dependency_closure(
                         f"stage '{stage_id}' depends on '{dependency_id}' "
                         f"which is not in the route set"
                     )
+
+
+def validate_every_stage_is_routed(
+    routing_policy: RoutingPolicy,
+    normalized_stages: tuple[NormalizedStage, ...],
+) -> None:
+    """Raise ``StaticValidationError`` (V-S17) when an enabled stage runs on no route.
+
+    With the fast path on, a stage listed in neither ``stages.fast`` nor ``stages.normal`` never
+    runs, and the merge gate never evaluates it: a blocking stage would silently stop guarding the
+    merge. Skipped when the fast path is off, because every stage then runs on every pull request.
+    """
+    if routing_policy.fast_path is None:
+        return
+    routed_stage_ids = set(routing_policy.fast_path.stages.fast) | set(routing_policy.fast_path.stages.normal)
+    unrouted_stage_ids = [stage.id for stage in normalized_stages if stage.id not in routed_stage_ids]
+    if unrouted_stage_ids:
+        raise StaticValidationError(
+            f"V-S17: stage(s) {', '.join(unrouted_stage_ids)} run on no route: add each to "
+            "routing.fast_path.stages.normal (or .fast), or disable the fast path."
+        )

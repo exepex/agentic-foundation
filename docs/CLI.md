@@ -40,7 +40,7 @@ logged** — only the secret *names* the contract references.
 >
 > ```bash
 > # a release, by its tag:
-> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.5.0.tar.gz"
+> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.5.1.tar.gz"
 > # reproducible — replace <commit> with a specific commit SHA:
 > pipx install "https://github.com/exepex/agentic-foundation/archive/<commit>.tar.gz"
 > # or the latest tip of main (evaluation only, mutable):
@@ -90,8 +90,11 @@ Onboards a repository: writes `<root>/.agentic/config.yml`, the one file `plan` 
   workflow files), then prints how many pipeline files the config produces.
 - **Never overwrites** an existing config: edit that file, or delete it to start over. Like `apply`, it
   refuses to write through a symlink, and it does not create a missing `--root`.
-- **Explains the profiles** in a comment block above the `profile:` line, generated from the profile
-  definitions themselves, so the file shows every choice and how to switch.
+- **Writes the full template.** Only `version`, `profile` and the publisher App are active. Every
+  other option that changes what Stagr generates (platform trust settings, provider secrets, the
+  stage catalog, the fast path, `remediation`) is present but commented out, under a short comment on
+  what it does. Uncomment what you want, then run `stagr plan`. The profile guide and the stage
+  catalog are generated from the profile definitions, so they always match what a profile turns on.
 
 A typical first run in a new repository:
 
