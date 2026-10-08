@@ -20,7 +20,7 @@ from .harness import (
     starter_project,
 )
 
-ENTRY_LINE_PATTERN = re.compile(r"^\s+(new|changed|unchanged)\s+(\S+)\s+(\d+) bytes\s+sha256:([0-9a-f]+)$")
+ENTRY_LINE_PATTERN = re.compile(r"^\s+(new|changed|unchanged|remove)\s+(\S+)\s+(\d+) bytes\s+sha256:([0-9a-f]+)$")
 
 
 def parse_entries(stdout: str) -> dict[str, tuple[str, int, str]]:

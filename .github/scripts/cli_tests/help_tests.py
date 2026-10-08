@@ -7,7 +7,7 @@ from .harness import check, run_cli
 def test_help_lists_the_commands() -> None:
     exit_code, stdout, _ = run_cli(["help"])
     check(exit_code == 0 and "help" in stdout, "help: `stagr help` lists the available commands")
-    for offered_command in ("init", "plan", "apply"):
+    for offered_command in ("init", "profile", "plan", "apply"):
         check(offered_command in stdout, f"help: '{offered_command}' is offered")
     check("\n    doctor" not in stdout, "help: 'doctor' is not offered yet")
 

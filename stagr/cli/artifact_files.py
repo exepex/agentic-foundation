@@ -1,8 +1,11 @@
 """Compare rendered artifacts with the files on disk, and write them.
 
-``stagr plan`` uses ``classify_artifacts`` to say what would happen; ``stagr apply`` uses the same
-function, then ``write_artifacts`` for the files that are new or changed. Every path is confined
-to the project root: a symlink or a directory at a target path is refused rather than followed.
+``stagr plan`` uses ``classify_artifacts`` and ``find_stale_artifacts`` to say what would happen;
+``stagr apply`` uses the same functions, then ``write_artifacts`` writes the files that are new or
+changed and deletes the stale ones. A file is stale when it carries the platform renderer's
+generated-file header but the config no longer produces it; a file without that header is never
+touched. Every path is confined to the project root: a symlink or a directory at a target path is
+refused rather than followed.
 """
 from __future__ import annotations
 
@@ -24,11 +27,15 @@ class ArtifactStatus(enum.Enum):
     NEW = "new"
     CHANGED = "changed"
     UNCHANGED = "unchanged"
+    REMOVE = "remove"
 
 
 @dataclass(frozen=True)
 class ArtifactEntry:
-    """One artifact, its size and hash, and what writing it would do to the target."""
+    """One artifact, its size and hash, and what applying it would do to the target.
+
+    For a ``REMOVE`` entry the artifact holds the stale file's current content.
+    """
 
     artifact: RenderedArtifact
     status: ArtifactStatus
@@ -53,12 +60,47 @@ def classify_artifacts(
     return tuple(_classify_artifact(project_root, artifact) for artifact in artifacts)
 
 
+def find_stale_artifacts(
+    project_root: Path,
+    artifact_directory: str,
+    generated_file_header: str,
+    produced_paths: frozenset[str],
+) -> tuple[ArtifactEntry, ...]:
+    """Return a ``REMOVE`` entry for each generated file in ``artifact_directory`` not produced now.
+
+    Only regular files directly in the directory whose first line is ``generated_file_header`` are
+    candidates. A symlinked directory or file is skipped, never followed.
+    """
+    directory_path = project_root
+    for segment in artifact_directory.split("/"):
+        directory_path = directory_path / segment
+        if directory_path.is_symlink():
+            return ()
+    if not directory_path.is_dir():
+        return ()
+    stale_entries = []
+    for candidate_path in sorted(directory_path.iterdir()):
+        relative_path = f"{artifact_directory}/{candidate_path.name}"
+        if relative_path in produced_paths or candidate_path.is_symlink() or not candidate_path.is_file():
+            continue
+        candidate_text = candidate_path.read_text(encoding="utf-8", errors="replace")
+        if candidate_text.split("\n", 1)[0] == generated_file_header:
+            stale_entries.append(
+                ArtifactEntry(RenderedArtifact(relative_path, candidate_text), ArtifactStatus.REMOVE)
+            )
+    return tuple(stale_entries)
+
+
 def write_artifacts(project_root: Path, entries: tuple[ArtifactEntry, ...]) -> None:
-    """Write every new or changed entry; unchanged files are left untouched (idempotent)."""
+    """Write every new or changed entry and delete every stale one; unchanged files are untouched."""
     for entry in entries:
         if entry.status is ArtifactStatus.UNCHANGED:
             continue
-        _write_atomically(project_root / entry.artifact.path, entry.content_bytes)
+        target_path = project_root / entry.artifact.path
+        if entry.status is ArtifactStatus.REMOVE:
+            target_path.unlink()
+        else:
+            _write_atomically(target_path, entry.content_bytes)
 
 
 def _classify_artifact(project_root: Path, artifact: RenderedArtifact) -> ArtifactEntry:

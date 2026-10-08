@@ -65,7 +65,7 @@ platform: { type: github, publisher: { app_id: 123456 } }
 ### `profile`
 | Field | Meaning |
 |---|---|
-| `profile` | Onboarding shortcut that expands to a default stage graph: `minimal` (a code `review` stage), `standard` (`review` + `security`, where `security` waits for `review`), or `custom` (no stages — you define them all under `stages`). Default `standard`. Stages you list under `stages` are merged on top (same id overrides). |
+| `profile` | Onboarding shortcut that expands to a default stage graph: `minimal` (a code `review` stage), `standard` (`review` + `security`, where `security` waits for `review`), or `custom` (no stages — you define them all under `stages`). Default `standard`. Stages you list under `stages` are merged on top (same id overrides). List or switch profiles with `stagr profile` ([CLI.md](CLI.md)). |
 
 ### `platform`
 | Field | Meaning |
