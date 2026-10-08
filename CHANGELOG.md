@@ -4,20 +4,35 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
-## 0.4.0 — 2026-10-08
+## 0.5.0 — 2026-10-08
 
-Outdated review threads are resolved automatically.
+Review findings are judged before they are fixed, finished threads are resolved automatically, and
+automated fixing stops after a set number of rounds.
 
-### New generated workflow
+### New config section ([docs/CONFIGURATION.md](docs/CONFIGURATION.md), `remediation`)
 
-- `resolve-outdated-threads.yml` resolves review threads a new commit made outdated, when only a
-  review backend wrote them. What it resolves and which pull requests run it: "Files written" in
-  [docs/CLI.md](docs/CLI.md).
+- `remediation` turns on an agent (Claude Code Action) that answers every review from Codex or a
+  trusted human: it fixes the findings it judges real and declines the rest with its reasons. A
+  declined finding stays open for a human. After `max_rounds` fix rounds (default 5) the pull request
+  is handed to a human.
+
+### New generated workflows ([docs/CLI.md](docs/CLI.md), "Files written")
+
+- `resolve-outdated-threads.yml` resolves finished finding threads: outdated ones, and with
+  `remediation` on, the ones the agent fixed.
+- `remediation.yml`, when the config has a `remediation` section.
+
+### Changed behavior
+
+- Every Codex review request carries review guidelines: report only realistic findings, never
+  hypothetical ones.
+- While a pull request carries the human-merge label after the round limit, stages request no review.
 
 ### Upgrading from 0.3.2
 
-Run `stagr apply`; `plan` lists the new workflow as `new`. It uses the platform token secret, with the
-permissions listed in [docs/CONFIGURATION.md](docs/CONFIGURATION.md), section 2.
+Run `stagr apply`; `plan` lists the new workflows as `new`. The resolution workflow uses the platform
+token secret ([docs/CONFIGURATION.md](docs/CONFIGURATION.md), section 2). For `remediation`, follow
+setup step 6 in section 4.
 
 ## 0.3.2 — 2026-10-08
 

@@ -124,7 +124,9 @@ This repository runs the pattern on itself. `.agentic/config.yml` is its declara
   with Codex-only comments, **auto-resolve** (`resolve-fixed-codex-review-threads.yml`); who resolves
   every other thread is set in `AGENTS.md`, "Review threads". The **fail-closed foundation gate**
   (`auto-merge-foundation-prs.yml`) merges provably-ready PRs; the conditions and the `human-merge`
-  stop are set in `AGENTS.md`, "Merge lanes". All of these workflows are hand-written for this repository; none is a Stagr feature.
+  stop are set in `AGENTS.md`, "Merge lanes". All of these workflows are hand-written for this
+  repository. Thread resolution is also a Stagr feature for the repositories it sets up: see
+  "Files written" in [docs/CLI.md](docs/CLI.md).
 
 > **Status:** what exists today and what comes next is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 > section 8.

@@ -294,3 +294,24 @@ def test_a_failing_post_raises_after_a_single_attempt() -> None:
         assert fake.issue_comments[PULL_NUMBER] == [] and len(fake.write_calls) == 1
         return
     raise AssertionError("expected GitHubApiError")
+
+
+# ---- hand-off to a human (remediation round limit) ----
+
+
+def test_a_pull_request_handed_to_a_human_gets_no_new_review_request() -> None:
+    fake = build_world()
+    fake.pull_requests[PULL_NUMBER]["labels"] = [{"name": "human-merge"}]
+    _assert_not_invoked(fake, invoke(fake, handOffLabel="human-merge"), "handed to a human")
+
+
+def test_removing_the_hand_off_label_resumes_review_requests() -> None:
+    fake = build_world()
+    fake.pull_requests[PULL_NUMBER]["labels"] = [{"name": "bug"}]
+    _assert_invoked(fake, invoke(fake, handOffLabel="human-merge"))
+
+
+def test_the_label_is_ignored_when_remediation_is_off() -> None:
+    fake = build_world()
+    fake.pull_requests[PULL_NUMBER]["labels"] = [{"name": "human-merge"}]
+    _assert_invoked(fake, invoke(fake, handOffLabel=None))

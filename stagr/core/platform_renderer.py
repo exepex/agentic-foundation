@@ -72,3 +72,11 @@ class PlatformRenderer(Protocol):
     ) -> RenderedArtifact | None:
         """Phase 2c: return the artifact resolving outdated finding threads, or None when no stage has any."""
         ...
+
+    def render_remediation(
+        self,
+        result_specs: tuple[StageResultSpec, ...],
+        render_context: RenderContext,
+    ) -> RenderedArtifact | None:
+        """Phase 2d: return the artifact that fixes or declines review findings, or None when off."""
+        ...

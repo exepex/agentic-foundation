@@ -236,6 +236,9 @@ class StageRuntimeConfig:
     invocation_rule: InvocationRule
     dependency_rules: tuple[DependencyRule, ...] = ()
     route_rule: RouteRule | None = None
+    # Label that marks a pull request handed to a human after the automated fix rounds ran out;
+    # while it is set, the stage requests no new review. None when automated fixing is off.
+    hand_off_label: str | None = None
 
     @classmethod
     def from_json_text(cls, config_text: str) -> "StageRuntimeConfig":
@@ -271,6 +274,7 @@ class StageRuntimeConfig:
                     for item in document["dependencies"]
                 ),
                 route_rule=cls._parse_route_rule(document["routing"]),
+                hand_off_label=document.get("handOffLabel"),
             )
         except (ValueError, KeyError, TypeError, AttributeError) as error:
             raise RuntimeConfigError(f"Invalid STAGR_STAGE_CONFIG: {error!r}") from error
@@ -911,6 +915,7 @@ class PullRequestView:
     head_sha: str
     head_repository_id: int | None
     base_repository_id: int | None
+    labels: frozenset[str] = frozenset()
 
     @classmethod
     def from_api(cls, payload: Mapping[str, Any]) -> "PullRequestView":
@@ -923,6 +928,7 @@ class PullRequestView:
             head_sha=payload["head"]["sha"],
             head_repository_id=head_repository.get("id"),
             base_repository_id=payload["base"]["repo"]["id"],
+            labels=frozenset(str(label.get("name") or "") for label in payload.get("labels") or ()),
         )
 
     @property
@@ -1338,6 +1344,10 @@ class BackendInvoker:
         ineligible_reason = self._eligibility.ineligible_reason(pull, request.event_head_sha)
         if ineligible_reason:
             return ReconcileResult(ACTION_SKIPPED, ineligible_reason)
+        if self._config.hand_off_label and self._config.hand_off_label in pull.labels:
+            return ReconcileResult(
+                ACTION_SKIPPED, "the pull request was handed to a human; remove the hand-off label to resume reviews"
+            )
         comments_path = f"repos/{self._repository}/issues/{pull.number}/comments"
         issue_comments = self._github_api.get_items(f"{comments_path}?per_page=100")
         if self._evidence_evaluator.evaluate(issue_comments, pull.head_sha).is_present:

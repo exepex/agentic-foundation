@@ -5,7 +5,7 @@ import dataclasses
 
 import yaml
 
-from stagr.core.enums import AuthorRole, StageResultSignalKind
+from stagr.core.enums import AuthorRole, StageResultSignalKind, StageTrigger
 from stagr.core.models import StageResultProvenance, StageResultSpec
 
 from neutral_core_tests.github_platform_renderer_tests.helpers import (
@@ -63,8 +63,11 @@ def test_thread_resolution_resolves_only_review_backend_threads() -> None:
     """Thread authors are the GraphQL logins of the review backends, without the [bot] suffix, once each."""
     step = _load_resolution_job(f"{CODEX_BOT_LOGIN}[bot]", f"{CODEX_BOT_LOGIN}[bot]")["steps"][0]
     assert step["env"]["THREAD_AUTHOR_LOGINS"] == f'["{CODEX_BOT_LOGIN}"]'
-    assert "select(.isResolved == false and .isOutdated == true)" in step["run"]
-    assert "all(.comments.nodes[];" in step["run"], "a thread with any other author must be left alone"
+    assert "select(.isOutdated or any(.comments.nodes[]; fixed_reply))" in step["run"]
+    assert "select(all(.comments.nodes[]; finding or fixed_reply))" in step["run"], (
+        "a thread with any other comment must be left alone"
+    )
+    assert step["env"]["FIXED_REPLY_LOGINS"] == "[]", "without remediation no reply counts as a fix"
 
 
 def test_thread_resolution_uses_the_platform_token_by_name_only() -> None:
@@ -101,7 +104,27 @@ def test_thread_resolution_follows_the_trust_policy_roles() -> None:
     assert "fromJSON('[\"MEMBER\", \"OWNER\"]')" in artifact.content
 
 
+def test_thread_resolution_matches_only_bot_actors() -> None:
+    """GraphQL drops "[bot]", so a human account named like the bot must never count as the bot."""
+    step = _load_resolution_job(f"{CODEX_BOT_LOGIN}[bot]")["steps"][0]
+    assert "author { __typename login }" in step["run"]
+    assert '.author.__typename == "Bot"' in step["run"]
+
+
+def test_thread_resolution_skips_stages_that_do_not_review_every_commit() -> None:
+    """Without a re-review on each push, a finding a push made outdated would be lost, so keep it."""
+    opened_only_stage = build_stage(triggers=(StageTrigger.PR_OPENED,))
+    artifact = build_renderer().render_thread_resolution(
+        (_build_result_spec(f"{CODEX_BOT_LOGIN}[bot]"),),
+        build_render_context(opened_only_stage),
+        TRUSTED_COMMENTER_ENV_NAME,
+    )
+    assert artifact is None
+
+
 THREAD_RESOLUTION_WORKFLOW_TESTS = (
+    test_thread_resolution_matches_only_bot_actors,
+    test_thread_resolution_skips_stages_that_do_not_review_every_commit,
     test_codex_stage_declares_its_bot_as_finding_author,
     test_thread_resolution_artifact_path_and_absence_without_finding_authors,
     test_thread_resolution_resolves_only_review_backend_threads,

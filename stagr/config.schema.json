@@ -112,6 +112,34 @@
       }
     },
 
+    "remediation": {
+      "description": "OPTIONAL. Automated fixes for review findings: an agent reads each review from the stages' review backends and from trusted human reviewers, fixes the findings it judges real, and declines the rest with its reasons. Omit to fix findings by hand.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider"
+      ],
+      "properties": {
+        "provider": {
+          "enum": [
+            "anthropic"
+          ],
+          "description": "The agent that fixes findings. anthropic: Claude Code Action, through the Claude GitHub App."
+        },
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 5,
+          "description": "Automated fix rounds per pull request. When reached with findings still open, the pull request is handed to a human. Default: 5."
+        },
+        "api_key_secret": {
+          "$ref": "#/$defs/secretName",
+          "default": "ANTHROPIC_API_KEY",
+          "description": "NAME of the repository secret holding the provider API key. Never the key. Default: ANTHROPIC_API_KEY."
+        }
+      }
+    },
     "merge": {
       "type": "object",
       "additionalProperties": false,

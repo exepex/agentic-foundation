@@ -144,3 +144,18 @@ def test_codex_renderer_security_stage_posts_security_review_command() -> None:
         f"Expected invocation body to contain '@codex security review', "
         f"got {comment_body!r}"
     )
+
+
+def test_codex_review_requests_carry_the_reasoning_guidelines() -> None:
+    """Both review commands ask Codex for realistic findings only, after the command itself."""
+    from stagr.core.renderers.openai_codex_backend_renderer import CODEX_REVIEW_GUIDELINES
+
+    renderer = build_renderer()
+    for stage, command in (
+        (build_review_normalized_stage(), "@codex review"),
+        (build_security_normalized_stage(), "@codex security review"),
+    ):
+        comment_body = renderer.render(stage).invocation.params["body"]
+        assert comment_body == f"{command}\n\n{CODEX_REVIEW_GUIDELINES}", f"unexpected body {comment_body!r}"
+    assert "hypothetical or highly unlikely" in CODEX_REVIEW_GUIDELINES
+    assert "When unsure whether a finding is real, leave it out." in CODEX_REVIEW_GUIDELINES
