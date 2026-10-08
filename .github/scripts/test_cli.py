@@ -3,7 +3,7 @@
 
 Runnable with plain `python .github/scripts/test_cli.py` (no pytest). Exit 0 = pass.
 This is a thin runner: the tests live in `cli_tests/`, grouped by command, and share the single
-`failures` list defined in `cli_tests.harness`. `init` and `doctor` are not offered yet.
+`failures` list defined in `cli_tests.harness`. `doctor` is not offered yet.
 """
 from __future__ import annotations
 
@@ -11,11 +11,12 @@ import sys
 
 from cli_tests.harness import failures
 from cli_tests.help_tests import HELP_TESTS
+from cli_tests.init_tests import INIT_TESTS
 from cli_tests.plan_apply_tests import PLAN_APPLY_TESTS
 
 
 def main() -> int:
-    for test_function in (*HELP_TESTS, *PLAN_APPLY_TESTS):
+    for test_function in (*HELP_TESTS, *INIT_TESTS, *PLAN_APPLY_TESTS):
         test_function()
     if failures:
         print(f"\n{len(failures)} test failure(s).", file=sys.stderr)

@@ -4,9 +4,9 @@
 over the neutral core (`stagr/core/`): no network, and **no secret values are ever read, printed, or
 logged** — only the secret *names* the contract references.
 
-**Today the commands are `stagr help`, `stagr plan` and `stagr apply`.** `plan` and `apply` turn a
-`.agentic/config.yml` into workflow files; `init` and `doctor` are planned, see
-[Planned commands](#planned-commands).
+**Today the commands are `stagr help`, `stagr init`, `stagr plan` and `stagr apply`.** `init` writes a
+starter `.agentic/config.yml`; `plan` and `apply` turn that config into workflow files. `doctor` is
+planned, see [Planned commands](#planned-commands).
 
 ## What you need
 
@@ -69,6 +69,32 @@ stagr help          # list every command with its purpose
 stagr help <command>  # detail for one command (also: `stagr <command> help`)
 ```
 
+### `stagr init`
+
+```bash
+stagr init [--app-id ID] [--profile minimal|standard] [--root DIR]
+```
+
+Onboards a repository: writes `<root>/.agentic/config.yml`, the one file `plan` and `apply` read.
+
+- **Asks** for the numeric ID of your Stagr publisher GitHub App (see
+  [CONFIGURATION.md](CONFIGURATION.md), "Publisher"), or takes it from `--app-id`. Without a terminal
+  (for example in a script), `--app-id` is required.
+- **`--profile`** picks the starter stage graph, `standard` by default; what each profile contains is
+  under `profile` in [CONFIGURATION.md](CONFIGURATION.md).
+- **Checks** the config it wrote with the same pipeline as `stagr plan`, then prints how many pipeline
+  files `plan` will list.
+- **Never overwrites** an existing config: edit that file, or delete it to start over. Like `apply`, it
+  refuses to write through a symlink, and it does not create a missing `--root`.
+
+A typical first run in a new repository:
+
+```bash
+stagr init        # asks for the App ID, writes .agentic/config.yml
+stagr plan        # preview the pipeline files
+stagr apply       # write them under .github/workflows/
+```
+
 ### `stagr plan` and `stagr apply`
 
 ```bash
@@ -112,8 +138,6 @@ plan: 4 file(s) under .; nothing was written
 
 These do not exist yet. They are described here so the design is visible; do not rely on them.
 
-- **`stagr init`** — create a starter `.agentic/config.yml`. It will ask for the GitHub App ID of the
-  Stagr publisher App.
 - **`stagr doctor`** — validate the config and list the secret **names** the pipeline needs.
 
 Renderers only return the files they would produce and never write them; `plan` lists that result and

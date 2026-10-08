@@ -38,4 +38,5 @@ These shape the design. They come from our understanding of GitHub's behavior an
   tells them what to do.
 - Making the optional live probes (V-E03, V-E04) required. They need admin or push access, so they
   run only when a platform token is supplied (D7).
-- `stagr init`. It is planned separately; doctor's checklist is what makes init's output actionable.
+- `stagr init`. It is a separate command ([docs/CLI.md](../../docs/CLI.md)); doctor's checklist is what
+  makes init's output actionable.

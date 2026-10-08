@@ -40,7 +40,8 @@ No model API key is needed today: Codex is app-backed and supplies its own model
 
 ## 3. `.agentic/config.yml` — field reference
 
-Write `.agentic/config.yml` by hand and keep it valid against
+`stagr init` writes a starter `.agentic/config.yml` ([CLI.md](CLI.md)); edit it from there and keep it
+valid against
 [`stagr/config.schema.json`](https://raw.githubusercontent.com/exepex/agentic-foundation/main/stagr/config.schema.json).
 The schema lists exactly the keys the toolkit reads; a key that is not listed does nothing.
 
@@ -230,12 +231,12 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 > security review can start together with the code review. Install the App **before** relying on the
 > pipeline and confirm on a test PR that the reviews run.
 
-1. Add `.agentic/config.yml` (section 3), starting from a `profile` and a `platform`, and adding
-   `stages` only for finer control. The shipped skills need no copy; see the `skill` field in
-   section 3 for how a skill is found and overridden.
+1. Create the Stagr GitHub App and its private-key secret, and note the App's ID
+   ([Publisher](#publisher-stagr-github-app)).
 2. Create the secrets your providers need (section 2) in your CI/SCM secret store.
-3. Create the Stagr GitHub App and its private-key secret, and put the App's ID in
-   `platform.publisher.app_id` ([Publisher](#publisher-stagr-github-app)).
+3. Run `stagr init` and enter that App ID: it writes `.agentic/config.yml` (section 3), starting from
+   a `profile` and a `platform`. Add `stages` only for finer control. The shipped skills need no copy;
+   see the `skill` field in section 3 for how a skill is found and overridden.
 4. Run `stagr plan` to validate the config and list the workflow files it produces (it writes
    nothing), then `stagr apply` to write them into `.github/workflows/`. Commit the result. See
    [CLI.md](CLI.md).
