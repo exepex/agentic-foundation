@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import dataclasses
+import json
+import re
+import subprocess
 
 import yaml
 
@@ -82,7 +85,6 @@ def test_remediation_round_limit_hands_the_pull_request_to_a_human() -> None:
     limit_step = _find_step(_load_remediation_job(RemediationPolicy("anthropic", 3, "ANTHROPIC_API_KEY")), "Check the review")
     assert limit_step["env"]["MAX_ROUNDS"] == "3"
     assert limit_step["env"]["HAND_OFF_LABEL"] == "human-merge"
-    assert f'select(startswith("{FIX_COMMIT_PREFIX}"))' in limit_step["run"]
     assert '-f "labels[]=${HAND_OFF_LABEL}"' in limit_step["run"]
     assert "<!-- stagr:remediation:handed-off -->" in limit_step["run"], "the hand-off comment is posted once"
 
@@ -129,7 +131,24 @@ def test_remediation_agent_context_and_tools_are_restricted() -> None:
     assert "--disallowedTools" in agent_inputs["claude_args"]
 
 
+def test_remediation_counts_fix_commits_not_message_lines() -> None:
+    """Each fix commit is one round, however many lines its message has."""
+    limit_step = _find_step(_load_remediation_job(), "Check the review")
+    (round_filter,) = re.findall(r"commits\" \\\n\s*--jq '([^']+)' \| wc -l", limit_step["run"])
+    multi_line_message = f"{FIX_COMMIT_PREFIX} restrict edits\n\n- owner check\n- return id\n\nCo-Authored-By: bot"
+    commits_page = [
+        {"sha": "a1", "commit": {"message": "Add edit and delete for comments"}},
+        {"sha": "b2", "commit": {"message": multi_line_message}},
+        {"sha": "c3", "commit": {"message": multi_line_message}},
+    ]
+    jq_output = subprocess.run(
+        ["jq", "-r", round_filter], input=json.dumps(commits_page), capture_output=True, text=True, check=True
+    ).stdout
+    assert len(jq_output.splitlines()) == 2, f"two fix commits must count as two rounds, got: {jq_output!r}"
+
+
 REMEDIATION_WORKFLOW_TESTS = (
+    test_remediation_counts_fix_commits_not_message_lines,
     test_remediation_acts_only_on_the_reviewed_current_commit,
     test_remediation_approval_without_inline_comments_has_no_findings,
     test_remediation_creates_the_hand_off_label_before_applying_it,

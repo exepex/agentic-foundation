@@ -178,8 +178,9 @@ if [[ "${{inline_findings}}" -eq 0 && ( "${{REVIEWER_TYPE}}" == "Bot" || "${{REV
   echo "proceed=false" >> "${{GITHUB_OUTPUT}}"
   exit 0
 fi
+# One output line per fix commit (its SHA): a commit message has several lines.
 fix_rounds="$(gh api --paginate "repos/${{GITHUB_REPOSITORY}}/pulls/${{PR_NUMBER}}/commits" \\
-  --jq '.[].commit.message | select(startswith("{FIX_COMMIT_PREFIX}"))' | wc -l)"
+  --jq '.[] | select(.commit.message | startswith("{FIX_COMMIT_PREFIX}")) | .sha' | wc -l)"
 if [[ "${{fix_rounds}}" -ge "${{MAX_ROUNDS}}" ]]; then
   # Create the label on first use; an existing label makes this call fail harmlessly.
   gh api --method POST "repos/${{GITHUB_REPOSITORY}}/labels" -f "name=${{HAND_OFF_LABEL}}" -f color=d93f0b \\
