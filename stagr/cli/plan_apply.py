@@ -57,13 +57,16 @@ def run_pipeline(project_root: Path) -> tuple[ArtifactEntry, ...]:
         print(f"warning: {warning}", file=sys.stderr)
     artifacts = render_artifacts(render_inputs)
     platform_renderer_class = PLATFORM_RENDERER_CLASSES[render_inputs.render_context.platform]
+    produced_entries = classify_artifacts(
+        project_root, artifacts, platform_renderer_class.GENERATED_FILE_HEADER
+    )
     stale_entries = find_stale_artifacts(
         project_root,
         platform_renderer_class.ARTIFACT_DIRECTORY,
         platform_renderer_class.GENERATED_FILE_HEADER,
         frozenset(artifact.path for artifact in artifacts),
     )
-    return (*classify_artifacts(project_root, artifacts), *stale_entries)
+    return (*produced_entries, *stale_entries)
 
 
 def format_entries(entries: tuple[ArtifactEntry, ...]) -> str:

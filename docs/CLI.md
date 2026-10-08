@@ -157,6 +157,9 @@ plan: 4 file(s) under .; nothing was written
 - **Files removed:** only files in `.github/workflows/` that start with that line and that the config
   no longer produces. A workflow without that line (your own workflows) is never listed, changed or
   deleted, and a symlink is never followed.
+- **Refuses** to overwrite a workflow Stagr did not generate: if one of your own files already sits at
+  a path Stagr writes (for example your own `routing.yml`), `plan` and `apply` stop with an error and
+  write nothing. Rename or remove that file, then run again.
 - **Needs** `platform.publisher.app_id` in the config: the numeric ID of the Stagr GitHub App that
   publishes the check runs (see [CONFIGURATION.md](CONFIGURATION.md)).
 - **Refuses** to write through a symlink or over a directory, so a file can never land outside the
