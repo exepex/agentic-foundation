@@ -39,6 +39,12 @@ from neutral_core_tests.github_platform_renderer_tests.test_governance_structure
     test_unrouted_stage_absent_from_generated_script,
     test_stage_check_run_query_uses_filter_all,
 )
+from neutral_core_tests.github_platform_renderer_tests.test_governance_structure.test_verdict_publishing import (
+    test_governance_publishes_verdict_check_run_on_pull_request_head,
+    test_governance_verdict_fails_closed,
+    test_governance_verdict_unchanged_is_not_republished,
+    test_governance_job_skips_check_suites_without_pull_request,
+)
 
 __all__ = [
     "test_governance_artifact_has_correct_path",
@@ -69,4 +75,8 @@ __all__ = [
     "test_non_blocking_stage_call_has_or_true_suffix",
     "test_unrouted_stage_absent_from_generated_script",
     "test_stage_check_run_query_uses_filter_all",
+    "test_governance_publishes_verdict_check_run_on_pull_request_head",
+    "test_governance_verdict_fails_closed",
+    "test_governance_verdict_unchanged_is_not_republished",
+    "test_governance_job_skips_check_suites_without_pull_request",
 ]
