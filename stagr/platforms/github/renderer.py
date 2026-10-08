@@ -127,6 +127,13 @@ class GitHubPlatformRenderer:
     })
     ARTIFACT_DIRECTORY = WORKFLOW_DIRECTORY
     GENERATED_FILE_HEADER = GENERATED_FILE_HEADER
+    # File names this renderer can produce; `stagr apply --force` claims stale files with these names
+    # even when they lack the header (for example files written by an older Stagr).
+    GENERATED_FILE_NAME_PATTERNS: tuple[str, ...] = (
+        "stage-*.yml",
+        ROUTING_WORKFLOW_FILENAME,
+        GOVERNANCE_WORKFLOW_FILENAME,
+    )
 
     def __init__(
         self,
