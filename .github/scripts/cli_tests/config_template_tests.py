@@ -29,7 +29,7 @@ def test_template_offers_every_optional_block_commented_out() -> None:
     template_text = build_config_template("standard", PUBLISHER_APP_ID)
     for block in OPTIONAL_BLOCKS:
         check(f"\n#{block}:\n" in template_text, f"template: offers `{block}` commented out")
-    for platform_key in ("private_key_secret", "same_repo_only", "trusted_roles", "auth", "labels"):
+    for platform_key in ("private_key_secret", "app_slug", "same_repo_only", "trusted_roles", "auth", "labels"):
         check(f"  #{platform_key}:" in template_text, f"template: offers platform `{platform_key}` commented out")
     check("#   security  on in: standard" in template_text, "template: the stage catalog names each stage's profiles")
 
@@ -239,7 +239,7 @@ def test_template_hints_name_the_allowed_values() -> None:
     template_text = build_config_template("minimal", PUBLISHER_APP_ID)
     for expected_hint in (
         "# supported today: review, security",
-        "# supported today: openai (codex)",
+        "# supported today: openai (backend: codex by default, or codex-api)",
         "# supported today: blocking",
         "# any of: pr_opened, pr_updated, manual, issue_labeled",
         "# any of: owner, member, collaborator, contributor",

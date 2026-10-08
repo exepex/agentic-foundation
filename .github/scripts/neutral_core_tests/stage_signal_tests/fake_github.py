@@ -46,6 +46,8 @@ class FakeGitHubApi:
         self.pull_requests: dict[int, dict[str, Any]] = {}
         self.issue_comments: dict[int, list[dict[str, Any]]] = {}
         self.review_threads: dict[int, list[dict[str, Any]]] = {}
+        self.pull_files: dict[int, list[dict[str, Any]]] = {}
+        self.reviews: list[dict[str, Any]] = []
         self.check_runs: list[dict[str, Any]] = []
         self.write_calls: list[tuple[str, str, dict[str, Any]]] = []
         self.failing_path_fragments: set[str] = set()
@@ -66,13 +68,14 @@ class FakeGitHubApi:
         state["pull_requests"] = {str(key): value for key, value in self.pull_requests.items()}
         state["issue_comments"] = {str(key): value for key, value in self.issue_comments.items()}
         state["review_threads"] = {str(key): value for key, value in self.review_threads.items()}
+        state["pull_files"] = {str(key): value for key, value in self.pull_files.items()}
         return state
 
     @classmethod
     def from_state(cls, state: Mapping[str, Any]) -> "FakeGitHubApi":
         fake = cls(state["publisher_app_id"])
         for name, value in state.items():
-            if name in ("pull_requests", "issue_comments", "review_threads"):
+            if name in ("pull_requests", "issue_comments", "review_threads", "pull_files"):
                 value = {int(key): item for key, item in value.items()}
             elif name == "failing_path_fragments":
                 value = set(value)
@@ -101,6 +104,9 @@ class FakeGitHubApi:
         if resource == ["pulls"]:
             assert items_key is None and query["state"] == ["open"], path
             return [pull for pull in self.pull_requests.values() if pull["state"] == "open"]
+        if resource[0] == "pulls" and resource[2:] == ["files"]:
+            assert items_key is None, path
+            return list(self.pull_files.get(int(resource[1]), []))
         if resource[0] == "issues" and resource[2:] == ["comments"]:
             assert items_key is None, path
             return list(self.issue_comments.get(int(resource[1]), []))
@@ -133,6 +139,8 @@ class FakeGitHubApi:
                 raise runtime.GitHubApiError(f"injected write failure for {fragment}")
         if method == "POST" and path.endswith("/comments"):
             return self._post_issue_comment(path, body)
+        if method == "POST" and path.endswith("/reviews"):
+            return self._post_review(path, body)
         self._assert_valid_check_run_body(method, body)
         if method == "POST":
             assert path == f"repos/{REPOSITORY}/check-runs", path
@@ -185,6 +193,17 @@ class FakeGitHubApi:
         }
         self.issue_comments.setdefault(issue_number, []).append(comment)
         return comment
+
+    def _post_review(self, path: str, body: Mapping[str, Any]) -> dict[str, Any]:
+        """A pull request review, as the real endpoint accepts it: inline comments need a line."""
+        segments = path.split("/")
+        assert segments[3] == "pulls" and segments[5] == "reviews" and len(segments) == 6, path
+        assert set(body) == {"commit_id", "event", "body", "comments"} and body["event"] == "COMMENT", body
+        for comment in body["comments"]:
+            assert set(comment) == {"path", "line", "side", "body"} and comment["side"] == "RIGHT", comment
+        review = {"pull_number": int(segments[4]), "user": dict(self._authenticated_account()), **body}
+        self.reviews.append(json.loads(json.dumps(review)))
+        return review
 
     def _raise_if_failing(self, path: str) -> None:
         for fragment in self.failing_path_fragments:

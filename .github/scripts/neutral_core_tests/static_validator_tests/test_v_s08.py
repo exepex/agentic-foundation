@@ -85,10 +85,10 @@ def test_v_s08_names_stage_in_error() -> None:
 
 
 def test_v_s08_github_renderer_declares_only_what_it_really_renders() -> None:
-    """GitHubPlatformRenderer declares PR_COMMENT and nothing else: the only kind it performs."""
+    """GitHubPlatformRenderer declares exactly the kinds it performs: PR_COMMENT and CI_COMPONENT."""
     from stagr.core.enums import InvocationKind
     from stagr.platforms.github.renderer import GitHubPlatformRenderer
 
-    assert GitHubPlatformRenderer.SUPPORTED_INVOCATION_KINDS == frozenset({InvocationKind.PR_COMMENT}), (
-        "GitHubPlatformRenderer must declare exactly {PR_COMMENT}; it cannot wire any other kind"
-    )
+    assert GitHubPlatformRenderer.SUPPORTED_INVOCATION_KINDS == frozenset(
+        {InvocationKind.PR_COMMENT, InvocationKind.CI_COMPONENT}
+    ), "GitHubPlatformRenderer must declare exactly {PR_COMMENT, CI_COMPONENT}; it wires no other kind"

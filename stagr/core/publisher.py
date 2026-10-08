@@ -8,6 +8,9 @@ The publisher is the Stagr GitHub App that publishes Stagr-owned platform signal
 - ``platform.publisher.private_key_secret``: the NAME of the repository secret
   holding the App private key (never the key itself). Defaults to
   ``STAGR_APP_PRIVATE_KEY``.
+- ``platform.publisher.app_slug``: the App's slug (the name in its URL). Optional; a backend that
+  posts its results as the publisher (``PUBLISHER_IDENTITY``) needs it, because the platform names
+  the App's account after the slug.
 
 The whole block is optional in the config schema. ``derive_publisher_config`` is called only by
 code that needs the publisher, and raises ``ConfigError`` when it is missing or invalid.
@@ -22,10 +25,17 @@ from .models import ConfigError
 
 DEFAULT_PRIVATE_KEY_SECRET = "STAGR_APP_PRIVATE_KEY"
 
+# Placeholder a backend renderer uses for "the publisher posts this" (its evidence producer or
+# finding author). Not a valid account name, so a platform renderer that does not replace it with
+# the publisher's real account fails closed instead of matching nothing.
+PUBLISHER_IDENTITY = "<stagr-publisher>"
+
 # Same shape as the JSON schema patterns; fullmatch means a trailing newline is rejected.
 _APP_ID_PATTERN = re.compile(r"[1-9][0-9]*", re.ASCII)
 _SECRET_NAME_PATTERN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*", re.ASCII)
 _RESERVED_SECRET_PREFIX = "GITHUB_"
+# GitHub App slugs: lowercase letters, digits and single hyphens.
+_APP_SLUG_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*", re.ASCII)
 
 
 @dataclass(frozen=True)
@@ -38,6 +48,7 @@ class PublisherConfig:
 
     app_id: str
     private_key_secret: str
+    app_slug: str | None = None
 
 
 def derive_publisher_config(config: dict[str, Any]) -> PublisherConfig:
@@ -61,7 +72,8 @@ def derive_publisher_config(config: dict[str, Any]) -> PublisherConfig:
         )
     if not isinstance(publisher_config, dict):
         raise ConfigError("platform.publisher must be a mapping with app_id and private_key_secret")
-    unknown_keys = sorted(str(key) for key in set(publisher_config) - {"app_id", "private_key_secret"})
+    known_keys = {"app_id", "private_key_secret", "app_slug"}
+    unknown_keys = sorted(str(key) for key in set(publisher_config) - known_keys)
     if unknown_keys:
         raise ConfigError(f"platform.publisher has unknown key(s): {', '.join(unknown_keys)}")
     if "app_id" not in publisher_config:
@@ -73,6 +85,7 @@ def derive_publisher_config(config: dict[str, Any]) -> PublisherConfig:
         private_key_secret=_validate_private_key_secret(
             publisher_config.get("private_key_secret", DEFAULT_PRIVATE_KEY_SECRET)
         ),
+        app_slug=_validate_app_slug(publisher_config.get("app_slug")),
     )
 
 
@@ -103,3 +116,14 @@ def _validate_private_key_secret(raw_secret_name: object) -> str:
             f"{_RESERVED_SECRET_PREFIX} prefix, which GitHub forbids for repository secrets"
         )
     return raw_secret_name
+
+
+def _validate_app_slug(raw_app_slug: object) -> str | None:
+    if raw_app_slug is None:
+        return None
+    if not (isinstance(raw_app_slug, str) and _APP_SLUG_PATTERN.fullmatch(raw_app_slug)):
+        raise ConfigError(
+            f"platform.publisher.app_slug {raw_app_slug!r} is invalid; it must be the App's slug, "
+            "the lowercase name in its URL github.com/apps/<slug>"
+        )
+    return raw_app_slug

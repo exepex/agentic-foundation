@@ -137,9 +137,10 @@ and `stages` in [CONFIGURATION.md](CONFIGURATION.md).
 
 ## 8. Status & roadmap
 
-- **What renders today:** GitHub is the only platform, and only stages whose backend is started by a
-  pull-request comment render — today the Codex `review` and `security` stages. Other stage types
-  (build, test, custom) are declared and validated but not rendered yet.
+- **What renders today:** GitHub is the only platform, and only the Codex `review` and `security`
+  stages render, on either Codex backend: started by a pull-request comment (`codex`) or run in the
+  stage workflow on an API key (`codex-api`). Other stage types (build, test, custom) are declared and
+  validated but not rendered yet.
 
 - **M1 — contract layer and neutral core (current):** schema, config validation, profiles,
   provider/backend/model resolution, and the stage graph.

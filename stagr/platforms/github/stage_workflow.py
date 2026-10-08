@@ -18,6 +18,16 @@ re-run a backend and an invocation trigger can never run the sweep:
                 declared evidence producer. Updates an existing Check Run in place.
 - ``sweep``     scheduled backstop over every open pull request. Updates in place.
 
+A stage whose backend runs as a CI component (``CI_COMPONENT``, e.g. Codex on an API key) splits
+``execute`` so that no job holds both the App token and the backend credential:
+
+- ``execute``   App token: eligibility, then the ``ci_gate`` step that decides whether the
+                component runs for the head (once per head, never after hand-off).
+- ``review``    the backend credential and a read-only checkout, no App token: runs the component
+                and hands its findings on as a job output.
+- ``publish``   App token: posts the findings as one review plus the completion marker
+                (``post_review``), then publishes the result signal exactly like ``execute`` does.
+
 ``reconcile`` and ``sweep`` observe the stage's evidence after the invocation was posted. Neither
 holds the backend secret, so neither can post an invocation: an expired in-flight lease is recovered the next time ``execute``
 runs (see design-docs/08-github-codex-mapping.md).
@@ -29,9 +39,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from stagr.core.enums import StageTrigger
+import json
+
+from stagr.core.enums import InvocationKind, StageTrigger
 from stagr.core.models import ExecutionPlan, NormalizedStage
-from stagr.platforms.github.action_pins import APP_TOKEN_ACTION_REF
+from stagr.platforms.github.action_pins import (
+    APP_TOKEN_ACTION_REF,
+    CHECKOUT_ACTION_REF,
+    CODEX_ACTION_REF,
+)
 from stagr.platforms.github.stage_expressions import (
     build_concurrency_key_expression,
     build_event_head_sha_expression,
@@ -41,6 +57,7 @@ from stagr.platforms.github.stage_expressions import (
 from stagr.platforms.github.stage_signal_config import StageSignalConfig
 
 RUNTIME_SCRIPT_PATH = Path(__file__).parent / "runtime" / "stage_signal_runtime.py"
+CI_RUNTIME_SCRIPT_PATH = Path(__file__).parent / "runtime" / "ci_component_runtime.py"
 
 # Sweep cadence (design-doc 06 suggests every five minutes; five is also GitHub's minimum).
 SWEEP_CRON_SCHEDULE = "*/5 * * * *"
@@ -50,6 +67,7 @@ _PULL_REQUEST_TARGET_EVENTS_FOR_PR_UPDATED = ("synchronize",)
 
 _APP_TOKEN_OUTPUT_EXPRESSION = "${{ steps.app-token.outputs.token }}"
 _RUN_RUNTIME_COMMAND = 'python3 -c "$STAGR_RUNTIME_SCRIPT"'
+_RUN_CI_RUNTIME_COMMAND = 'python3 -c "$STAGR_CI_RUNTIME_SCRIPT"'
 _EVENT_NAME_EXPRESSION = "${{ github.event_name }}"
 # Steps that act on the pull request run only when the eligibility step said so; the implicit
 # success() also keeps them from running after a failed eligibility step.
@@ -111,12 +129,20 @@ def build_stage_workflow_yaml(
     on_section: str,
     publisher_app_id: str,
     private_key_secret_name: str,
+    component_starter_bots: tuple[str, ...] = (),
 ) -> str:
     """Return the complete GitHub Actions workflow YAML string for the stage."""
     token_step = _build_token_acquisition_step(publisher_app_id, private_key_secret_name)
     wakeup_relevance = _build_wakeup_relevance(signal_config, publisher_app_id)
+    is_ci_component = plan.invocation.kind is InvocationKind.CI_COMPONENT
+    if is_ci_component:
+        stage_jobs = _build_ci_component_jobs(
+            plan, stage, signal_config, token_step, wakeup_relevance, component_starter_bots
+        )
+    else:
+        stage_jobs = [_build_execute_job(plan, stage, signal_config, token_step, wakeup_relevance)]
     jobs = [
-        _build_execute_job(plan, stage, signal_config, token_step, wakeup_relevance),
+        *stage_jobs,
         _build_reconcile_job(signal_config, token_step),
         _build_sweep_job(token_step),
     ]
@@ -130,7 +156,7 @@ def build_stage_workflow_yaml(
         f'  group: "stagr-{stage.id}-{build_concurrency_key_expression(wakeup_relevance)}"\n'
         "  cancel-in-progress: false\n"
         "\n"
-        f"{_build_workflow_env(signal_config)}"
+        f"{_build_workflow_env(signal_config, is_ci_component)}"
         "\n"
         "jobs:\n"
         + "\n".join(jobs)
@@ -146,15 +172,19 @@ def _build_wakeup_relevance(signal_config: StageSignalConfig, publisher_app_id: 
     )
 
 
-def _build_workflow_env(signal_config: StageSignalConfig) -> str:
+def _build_workflow_env(signal_config: StageSignalConfig, is_ci_component: bool) -> str:
     runtime_script = RUNTIME_SCRIPT_PATH.read_text(encoding="utf-8")
-    return (
+    environment = (
         "env:\n"
         "  STAGR_STAGE_CONFIG: |\n"
         f"    {signal_config.to_json_text()}\n"
         "  STAGR_RUNTIME_SCRIPT: |\n"
         f"{_indent_block(runtime_script, '    ')}"
     )
+    if is_ci_component:
+        ci_runtime_script = CI_RUNTIME_SCRIPT_PATH.read_text(encoding="utf-8")
+        environment += f"  STAGR_CI_RUNTIME_SCRIPT: |\n{_indent_block(ci_runtime_script, '    ')}"
+    return environment
 
 
 def _indent_block(text: str, indentation: str) -> str:
@@ -187,6 +217,15 @@ def _declared_event_names(stage: NormalizedStage) -> list[str]:
     return [name for name in ("pull_request_target", "workflow_dispatch", "issues") if name in declared]
 
 
+def _build_execute_condition(stage: NormalizedStage, wakeup_relevance: str | None) -> str:
+    """The events that start the stage: its declared triggers, plus upstream wake-ups if any."""
+    event_conditions = [f"github.event_name == '{name}'" for name in _declared_event_names(stage)]
+    execute_condition = " || ".join(event_conditions) or "false"
+    if wakeup_relevance is not None:
+        execute_condition += f" || {wakeup_relevance}"
+    return execute_condition
+
+
 def _build_execute_job(
     plan: ExecutionPlan,
     stage: NormalizedStage,
@@ -194,10 +233,7 @@ def _build_execute_job(
     token_step: str,
     wakeup_relevance: str | None,
 ) -> str:
-    event_conditions = [f"github.event_name == '{name}'" for name in _declared_event_names(stage)]
-    execute_condition = " || ".join(event_conditions) or "false"
-    if wakeup_relevance is not None:
-        execute_condition += f" || {wakeup_relevance}"
+    execute_condition = _build_execute_condition(stage, wakeup_relevance)
     event_lines = _build_event_environment_lines(signal_config)
     return (
         "  execute:\n"
@@ -227,6 +263,143 @@ def _build_execute_job(
         f"{''.join(event_lines)}"
         '          STAGR_JOB_STATUS: "${{ job.status }}"\n'
         f"        run: {_RUN_RUNTIME_COMMAND}\n"
+    )
+
+
+# The publish job reports a failure of either earlier job; otherwise its own status.
+_CI_JOB_STATUS_EXPRESSION = (
+    "${{ (needs.execute.result == 'failure' || needs.review.result == 'failure') "
+    "&& 'failure' || job.status }}"
+)
+
+
+def _build_ci_component_jobs(
+    plan: ExecutionPlan,
+    stage: NormalizedStage,
+    signal_config: StageSignalConfig,
+    token_step: str,
+    wakeup_relevance: str | None,
+    component_starter_bots: tuple[str, ...],
+) -> list[str]:
+    """Return the ``execute``, ``review`` and ``publish`` jobs of a CI-component stage."""
+    event_lines = _build_event_environment_lines(signal_config)
+    gate_lines = _build_event_environment_lines(signal_config, include_event_name=False)
+    execute_job = (
+        "  execute:\n"
+        f'    if: "${{{{ {_build_execute_condition(stage, wakeup_relevance)} }}}}"\n'
+        "    runs-on: ubuntu-latest\n"
+        "    permissions: {}\n"
+        "    outputs:\n"
+        '      run_backend: "${{ steps.ci-gate.outputs.run_backend }}"\n'
+        '      head_sha: "${{ steps.ci-gate.outputs.head_sha }}"\n'
+        '      base_sha: "${{ steps.ci-gate.outputs.base_sha }}"\n'
+        "    steps:\n"
+        f"{token_step}"
+        "\n"
+        "      - name: Check eligibility\n"
+        "        id: eligibility\n"
+        "        env:\n"
+        f'          GH_TOKEN: "{_APP_TOKEN_OUTPUT_EXPRESSION}"\n'
+        "          STAGR_MODE: eligibility\n"
+        f"{''.join(event_lines)}"
+        f"        run: {_RUN_RUNTIME_COMMAND}\n"
+        "\n"
+        "      - name: Decide whether the review runs for this head\n"
+        "        id: ci-gate\n"
+        f'        if: "{_PROCEED_CONDITION}"\n'
+        "        env:\n"
+        f'          GH_TOKEN: "{_APP_TOKEN_OUTPUT_EXPRESSION}"\n'
+        "          STAGR_MODE: ci_gate\n"
+        f"{''.join(gate_lines)}"
+        f"        run: {_RUN_CI_RUNTIME_COMMAND}\n"
+    )
+    publish_job = (
+        "  publish:\n"
+        "    needs: [execute, review]\n"
+        "    if: \"${{ !cancelled() && needs.execute.result != 'skipped' }}\"\n"
+        "    runs-on: ubuntu-latest\n"
+        "    timeout-minutes: 10\n"
+        "    permissions: {}\n"
+        "    steps:\n"
+        f"{token_step}"
+        "\n"
+        "      - name: Post the review findings\n"
+        "        if: \"${{ needs.review.result == 'success' }}\"\n"
+        "        env:\n"
+        f'          GH_TOKEN: "{_APP_TOKEN_OUTPUT_EXPRESSION}"\n'
+        "          STAGR_MODE: post_review\n"
+        f"{gate_lines[0]}"
+        '          STAGR_REVIEWED_HEAD_SHA: "${{ needs.execute.outputs.head_sha }}"\n'
+        '          STAGR_REVIEW_FINDINGS: "${{ needs.review.outputs.findings }}"\n'
+        f"        run: {_RUN_CI_RUNTIME_COMMAND}\n"
+        "\n"
+        "      - name: Publish result signal\n"
+        '        if: "${{ !cancelled() }}"\n'
+        "        env:\n"
+        f'          GH_TOKEN: "{_APP_TOKEN_OUTPUT_EXPRESSION}"\n'
+        "          STAGR_MODE: publish\n"
+        f"{''.join(event_lines)}"
+        f'          STAGR_JOB_STATUS: "{_CI_JOB_STATUS_EXPRESSION}"\n'
+        f"        run: {_RUN_RUNTIME_COMMAND}\n"
+    )
+    return [execute_job, _build_codex_review_job(plan, component_starter_bots), publish_job]
+
+
+def _build_codex_review_job(plan: ExecutionPlan, component_starter_bots: tuple[str, ...]) -> str:
+    """The job that runs Codex read-only on the head with the API key, and no App token.
+
+    The checkout keeps no credentials and Codex runs without sudo in a read-only sandbox. The
+    action refuses a run started by a bot it does not list, so ``component_starter_bots`` (already
+    vetted by the eligibility step's trust checks) are listed.
+    """
+    params = plan.invocation.params
+    (credential,) = (
+        secret for secret in plan.required_secrets if secret.alias == params["credential_alias"]
+    )
+    prompt = (
+        f"{params['prompt']}\n\n"
+        "Base commit: ${{ needs.execute.outputs.base_sha }}\n"
+        "Head commit: ${{ needs.execute.outputs.head_sha }}"
+    )
+    optional_inputs = ""
+    if component_starter_bots:
+        optional_inputs += f"          allow-bot-users: {','.join(component_starter_bots)}\n"
+    if params.get("model"):
+        optional_inputs += f"          model: {params['model']}\n"
+    return (
+        "  review:\n"
+        "    needs: execute\n"
+        "    if: \"${{ needs.execute.outputs.run_backend == 'true' }}\"\n"
+        "    runs-on: ubuntu-latest\n"
+        "    timeout-minutes: 30\n"
+        "    permissions:\n"
+        "      contents: read\n"
+        "    outputs:\n"
+        '      findings: "${{ steps.findings.outputs.findings }}"\n'
+        "    steps:\n"
+        "      - name: Check out the pull request head\n"
+        f"        uses: {CHECKOUT_ACTION_REF}\n"
+        "        with:\n"
+        '          ref: "${{ needs.execute.outputs.head_sha }}"\n'
+        "          fetch-depth: 0\n"
+        "          persist-credentials: false\n"
+        "\n"
+        "      - name: Review the change with Codex\n"
+        f"        uses: {CODEX_ACTION_REF}\n"
+        "        with:\n"
+        f'          openai-api-key: "${{{{ secrets.{credential.env_name} }}}}"\n'
+        f"          prompt: {json.dumps(prompt)}\n"
+        f"          output-schema: {json.dumps(params['output_schema'])}\n"
+        '          output-file: "${{ runner.temp }}/stagr-review-findings.json"\n'
+        "          sandbox: read-only\n"
+        "          safety-strategy: drop-sudo\n"
+        f"{optional_inputs}"
+        "\n"
+        "      - name: Hand the findings to the publish job\n"
+        "        id: findings\n"
+        "        run: |\n"
+        '          delimiter="stagr_findings_$(cat /proc/sys/kernel/random/uuid)"\n'
+        '          { echo "findings<<${delimiter}"; cat "${RUNNER_TEMP}/stagr-review-findings.json"; echo; echo "${delimiter}"; } >> "${GITHUB_OUTPUT}"\n'
     )
 
 

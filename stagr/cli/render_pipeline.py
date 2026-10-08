@@ -28,6 +28,7 @@ from stagr.core.policy import (
 )
 from stagr.core.publisher import PublisherConfig, derive_publisher_config
 from stagr.core.render_loop import resolve_platform_token_secret, run_phase1
+from stagr.core.renderers.openai_codex_api_backend_renderer import OpenAICodexApiBackendRenderer
 from stagr.core.renderers.openai_codex_backend_renderer import OpenAICodexBackendRenderer
 from stagr.core.static_validator import (
     validate_backend_renderer_availability,
@@ -62,6 +63,7 @@ def build_backend_registry() -> BackendRendererRegistry:
     """Return a registry holding every backend renderer this toolkit ships."""
     backend_registry = BackendRendererRegistry()
     backend_registry.register(OpenAICodexBackendRenderer())
+    backend_registry.register(OpenAICodexApiBackendRenderer())
     return backend_registry
 
 
@@ -137,8 +139,9 @@ def render_artifacts(render_inputs: RenderInputs) -> tuple[RenderedArtifact, ...
     """
     render_context = render_inputs.render_context
     platform_renderer_class = PLATFORM_RENDERER_CLASSES[render_context.platform]
+    publisher = render_inputs.publisher
     platform_renderer = platform_renderer_class(
-        render_inputs.publisher.app_id, render_inputs.publisher.private_key_secret
+        publisher.app_id, publisher.private_key_secret, publisher.app_slug
     )
 
     stage_renders = run_phase1(

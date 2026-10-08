@@ -73,6 +73,14 @@ def _build_platform_section(app_id: str, setting_prefix: str) -> str:
         + _settings(["private_key_secret: STAGR_APP_PRIVATE_KEY"], setting_prefix, "    ")
         + _comment(
             [
+                "The App's slug, the name in its URL github.com/apps/<slug>. Needed when a stage",
+                "uses the `codex-api` backend, which posts its reviews as the App.",
+            ],
+            "    ",
+        )
+        + _settings(["app_slug: your-app-slug"], setting_prefix, "    ")
+        + _comment(
+            [
                 "Pull requests from forks never start a stage (true), so outside code never runs",
                 "with this repository's secrets.",
             ],

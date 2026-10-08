@@ -9,6 +9,8 @@ from __future__ import annotations
 PROVIDER_OPENAI = "openai"
 
 BACKEND_CODEX = "codex"
+# Codex run inside the pipeline on an OpenAI API key instead of through the Codex GitHub App.
+BACKEND_CODEX_API = "codex-api"
 
 DEFAULT_BACKEND_BY_PROVIDER: dict[str, str] = {
     PROVIDER_OPENAI: BACKEND_CODEX,

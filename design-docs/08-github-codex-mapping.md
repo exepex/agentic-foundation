@@ -316,11 +316,21 @@ This is how the generated `stage-<id>.yml` implements the reconciliation model i
   reopen, `ready_for_review`, or a manual re-run of the workflow). A new push starts a new head
   and is invoked normally. This narrows the recovery rule in `06-runtime-boundary.md`, which
   allows the sweep to re-post.
-- **Other invocation kinds.** The GitHub renderer renders only `PR_COMMENT`. A backend whose plan
-  needs another kind (`CI_COMPONENT`) is rejected by V-S08
-  (`07-validation.md`), and the renderer itself refuses it.
+- **`CI_COMPONENT` invocations.** The GitHub renderer also renders a `CI_COMPONENT`, limited to the
+  components it knows (today `openai-codex-review`, the `codex-api` backend); any other kind or
+  component is rejected by V-S08 (`07-validation.md`) or by the renderer. Such a stage's `execute` is
+  split so that no job holds both the App token and the backend credential: `execute` (App token)
+  runs eligibility and then `ci_gate`, which allows one run per eligible head and none after the
+  hand-off label; `review` (backend credential, checkout without credentials, no App token) runs the
+  component; `publish` (App token) posts the findings as one review and a completion marker
+  (`post_review`), then publishes the signal. The marker is written to satisfy the stage's own
+  `COMMENT_MATCH` evidence rule, and the review and marker are authored by the App
+  (`platform.publisher.app_slug`), so findings and evidence come from an account no person can
+  impersonate. The CI-component code lives in `runtime/ci_component_runtime.py`, embedded only in
+  such stages, which runs the shared runtime script as a module rather than copying it.
 - **Stagr App permissions** used at run time: Checks (write), Pull requests (read) and Issues
-  (read).
+  (read); with a `CI_COMPONENT` stage also Pull requests (write) and Issues (write), to post the
+  review and the marker.
 
 ---
 

@@ -143,6 +143,7 @@ GATE_KIND_NO_OPEN_THREADS = "no_open_threads"
 JOB_STATUS_FAILURE = "failure"
 
 INVOCATION_KIND_PR_COMMENT = "pr_comment"
+INVOCATION_KIND_CI_COMPONENT = "ci_component"
 TRUSTED_COMMENTER_TOKEN_VARIABLE = "TRUSTED_COMMENTER_TOKEN"
 DEFAULT_LEASE_MINUTES = 30
 MAX_LEASE_MINUTES = 24 * 60
@@ -195,11 +196,13 @@ class GateRule:
 
 @dataclass(frozen=True)
 class InvocationRule:
-    """How ``invoke`` mode asks the backend to run: one PR comment, guarded by a lease."""
+    """How the backend is asked to run: one PR comment guarded by a lease, or a CI component
+    (run by ``ci_component_runtime.py``), which has no body and no lease.
+    """
 
     kind: str
-    body: str
-    lease_minutes: int
+    body: str | None = None
+    lease_minutes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -283,6 +286,8 @@ class StageRuntimeConfig:
 
     @staticmethod
     def _parse_invocation_rule(invocation_document: Mapping[str, Any]) -> InvocationRule:
+        if invocation_document["kind"] == INVOCATION_KIND_CI_COMPONENT:
+            return InvocationRule(kind=INVOCATION_KIND_CI_COMPONENT)
         return InvocationRule(
             kind=invocation_document["kind"],
             body=invocation_document["body"],
@@ -349,6 +354,8 @@ class StageRuntimeConfig:
 
     def _reject_unsupported_invocation_rule(self) -> None:
         rule = self.invocation_rule
+        if rule.kind == INVOCATION_KIND_CI_COMPONENT:
+            return
         if rule.kind != INVOCATION_KIND_PR_COMMENT:
             raise RuntimeConfigError(f"Unsupported invocation kind: {rule.kind!r}")
         if not isinstance(rule.body, str) or not rule.body.strip():
@@ -916,6 +923,7 @@ class PullRequestView:
     head_repository_id: int | None
     base_repository_id: int | None
     labels: frozenset[str] = frozenset()
+    base_sha: str = ""
 
     @classmethod
     def from_api(cls, payload: Mapping[str, Any]) -> "PullRequestView":
@@ -929,6 +937,7 @@ class PullRequestView:
             head_repository_id=head_repository.get("id"),
             base_repository_id=payload["base"]["repo"]["id"],
             labels=frozenset(str(label.get("name") or "") for label in payload.get("labels") or ()),
+            base_sha=str(payload["base"].get("sha") or ""),
         )
 
     @property

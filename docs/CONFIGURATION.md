@@ -9,7 +9,8 @@ a **service account** vs a **personal access token (PAT)**, and every field of `
 
 - A repository you can add workflows and secrets to, on a platform that has a renderer (see
   [ARCHITECTURE.md](ARCHITECTURE.md), section 8).
-- Provider access for each provider your stages use (today only OpenAI Codex).
+- Provider access for each provider your stages use (today only OpenAI Codex, through either of the
+  [Codex backends](#codex-backends-codex-and-codex-api)).
 
 The toolkit never creates credentials.
 
@@ -22,12 +23,13 @@ you can rename them in the config (see below).
 
 | Purpose | Name | Type | Required when | Scope / notes |
 |---|---|---|---|---|
-| Codex comment-trigger, PR publication, resolving outdated review threads | `REMEDIATION_TOKEN` | **Fine-grained PAT (real user)** | a stage uses Codex's `@codex` comment flow | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
+| Codex comment-trigger, PR publication, resolving outdated review threads | `REMEDIATION_TOKEN` | **Fine-grained PAT (real user)** | a stage uses the `codex` backend, or any review stage (finished review threads are resolved with it) | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
+| Codex API key | `OPENAI_API_KEY` | OpenAI API key | a stage uses the `codex-api` backend | Only the job that runs Codex receives it. Billed per use to the key's OpenAI project; set a spending limit there. |
 | Remediation agent API key | `ANTHROPIC_API_KEY` | Anthropic API key | the config has a [`remediation`](#remediation-optional--automated-fixes) section | Also install the **Claude GitHub App** on the repository: the agent pushes its fixes as that App, which starts the next review. |
 | Stagr GitHub App private key | `STAGR_APP_PRIVATE_KEY` | GitHub App private key | you configure `platform.publisher` | See [Publisher](#publisher-stagr-github-app). |
 | GitHub API (PR reads) | `GITHUB_TOKEN` | Provided by Actions | always | No action needed; each generated workflow sets its own least-privilege permissions. |
 
-No model API key is needed today: Codex is app-backed and supplies its own model.
+The `codex` backend needs no model API key: the Codex GitHub App supplies its own model.
 
 **Why a real-user PAT:**
 - **`REMEDIATION_TOKEN`** must be a **real-user PAT** because Codex acts on `@codex` commands
@@ -77,6 +79,7 @@ platform: { type: github, publisher: { app_id: 123456 } }
 | `auth.token_secret` | **Name** of the secret holding the platform API token. Never the value. |
 | `publisher.app_id` | The numeric ID of the **Stagr GitHub App** that publishes Stagr's own Check Runs. A positive whole number (quoted digits also work). It is **not a secret**: it is written as-is into the generated workflows. No default. The schema accepts a config without it, but **`stagr plan` and `stagr apply` require it**: the generated workflows publish their check runs as this App. |
 | `publisher.private_key_secret` | Optional, used with `publisher`. The **name** of the repository secret that holds the App's private key. Default `STAGR_APP_PRIVATE_KEY`. Never the key itself. |
+| `publisher.app_slug` | The App's slug: the lowercase name in its URL, `github.com/apps/<slug>`. Required only when a stage uses the `codex-api` backend, which posts its reviews as the App. No default. |
 | `labels.human_merge` | A change-request with this label is **never** merged automatically (a human keeps merge authority). Default `human-merge`. |
 
 A secret name is letters, digits and underscores, not starting with a digit, and not starting with
@@ -124,6 +127,7 @@ platform:
   publisher:
     app_id: 123456                          # the App's numeric ID (not a secret)
     private_key_secret: STAGR_APP_PRIVATE_KEY   # NAME of the secret holding the App private key
+    app_slug: my-stagr-app                  # only for the codex-api backend
 ```
 
 Steps for the operator: create the GitHub App, install it on the repository, save its private key as a
@@ -135,8 +139,8 @@ authorization errors):
 | Permission | Access | Why |
 |---|---|---|
 | Checks | Read and write | Create and update the stage Check Runs; the merge gate reads them and publishes its verdict (setup step 5, section 4) |
-| Pull requests | Read | Read pull requests, changed files and review threads |
-| Issues | Read | Read pull request comments, where review backends post their results |
+| Pull requests | Read (Read and write with the `codex-api` backend) | Read pull requests, changed files and review threads; with `codex-api`, post each review |
+| Issues | Read (Read and write with the `codex-api` backend) | Read pull request comments, where review backends post their results; with `codex-api`, post each review's completion comment |
 | Metadata | Read | Granted automatically |
 
 A value that is not a valid secret name (for example a pasted key) is rejected when the config is
@@ -145,8 +149,8 @@ installed, so guard it and rotate it if it leaks.
 
 ### `stages` (optional — the agent graph)
 Omit to use the profile's stages. Anything you list is **merged onto** the profile (a stage with the
-same `id` overrides). Each stage is one agent. One provider has a default backend today: `openai`
-(Codex).
+same `id` overrides). Each stage is one agent. One provider is supported today: `openai` (Codex), with
+the two [Codex backends](#codex-backends-codex-and-codex-api).
 
 | Field | Meaning |
 |---|---|
@@ -154,7 +158,7 @@ same `id` overrides). Each stage is one agent. One provider has a default backen
 | `type` | **Required.** `review` \| `security` \| `build` \| `test` \| `custom`. |
 | `enabled` | `false` to keep a stage defined but off. Default `true`. |
 | `provider` | **The primary knob.** `openai` runs Codex. Omit to inherit `defaults.provider`. |
-| `backend` | Optional. The tool that performs the stage, as a plain string. Omit it: the default follows the provider (`openai` → `codex`). |
+| `backend` | Optional. The tool that performs the stage, as a plain string. Omit it: the default follows the provider (`openai` → `codex`). See [Codex backends](#codex-backends-codex-and-codex-api). |
 | `model.default` | Optional model ID for this stage; overrides `defaults.models.<provider>.default`. |
 | `skill` | Skill id: the stage's methodology. Stagr uses your repo's `.agentic/skills/<id>/SKILL.md` when it exists (copy a shipped skill there and edit it to override it), otherwise the skill Stagr ships under [`stagr/templates/skills/`](https://github.com/exepex/agentic-foundation/tree/main/stagr/templates/skills): `code-review` and `security-review`. Validation (V-S06) fails if neither exists. |
 | `triggers` | Any of `pr_opened`, `pr_updated`, `manual`, `issue_labeled`. |
@@ -163,6 +167,32 @@ same `id` overrides). Each stage is one agent. One provider has a default backen
 
 > **Which stages render.** A stage whose backend the platform renderer cannot start is rejected by
 > validation (V-S08). What renders today is in [ARCHITECTURE.md](ARCHITECTURE.md), section 8.
+
+#### Codex backends: `codex` and `codex-api`
+
+Both backends run Codex on `review` and `security` stages with a `blocking` gate, and both send Codex
+the same reasoning rules. They differ in how Codex is started and who pays for it:
+
+| | `codex` (default) | `codex-api` |
+|---|---|---|
+| How Codex runs | The **Codex GitHub App** reviews when the workflow posts `@codex review` (or `@codex security review`) | The stage workflow runs Codex itself, with [`openai/codex-action`](https://github.com/openai/codex-action) |
+| Billed to | The ChatGPT plan connected to the repository, within its review limits | The OpenAI API key, per use |
+| Needs | The Codex GitHub App ([setup](#4-setup-steps)) and `REMEDIATION_TOKEN` | `OPENAI_API_KEY`, `platform.publisher.app_slug`, and write permissions for the Stagr App ([Publisher](#publisher-stagr-github-app)) |
+| Findings posted by | The Codex bot | The Stagr App, as one review per commit with a comment on each finding's line |
+
+To switch a profile's stages to `codex-api`, override them by `id`:
+
+```yaml
+stages:
+  - { id: review, type: review, backend: codex-api }
+  - { id: security, type: security, backend: codex-api }
+```
+
+With `codex-api`, Codex reviews the change between the pull request's base and head commits in a
+job that holds only the API key and a checkout without credentials. Codex runs without sudo in its
+read-only sandbox and never sees the Stagr App's token. A finding on a file the pull request does not
+change has no changed line to attach to; it is listed in the review's summary and does not block.
+A stage's [model](#3a-model-resolution) is passed to Codex; without one Codex uses its default.
 
 See **Model resolution** below for how a stage's model is chosen.
 
@@ -237,8 +267,9 @@ A stage's model is resolved once, **most specific wins**:
 2. `defaults.models.<provider>.default`, where `<provider>` is the stage's provider (or
    `defaults.provider` when the stage names none).
 
-If neither is set, no model is bound and the backend decides. `openai` (Codex) is app-backed and
-supplies its own model, so a Codex stage normally needs no model at all. A model value is a literal
+If neither is set, no model is bound and the backend decides. On the `codex` backend the Codex App
+supplies its own model, so the stage needs none; on `codex-api` a bound model is the model Codex
+runs with. A model value is a literal
 model ID; the toolkit does not rewrite it.
 
 ---
@@ -264,8 +295,8 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 
 ## 4. Setup steps
 
-> **Prerequisite — the Codex GitHub App (only for `openai` stages).** A stage with `provider: openai`
-> runs **Codex**, which requires the **Codex GitHub App** to be installed on the repo/org and the
+> **Prerequisite — the Codex GitHub App (only for stages on the `codex` backend).** Such a stage
+> runs **Codex** through the **Codex GitHub App**, which must be installed on the repo/org and the
 > repository to be connected to Codex code review, so that Codex acts on the `@codex review` and
 > `@codex security review` comments the generated workflows post. The generated workflows request
 > every review themselves, in the order the stage graph sets, so Codex's own **automatic** code and
@@ -299,6 +330,8 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 | Symptom | Likely cause |
 |---|---|
 | Reviewer never runs on Codex | `REMEDIATION_TOKEN` missing or not a real-user PAT, or the Codex GitHub App is not installed. |
+| A `codex-api` stage fails in "Review the change with Codex" | `OPENAI_API_KEY` is missing or has no credit, or the run was started by an account the action refuses: it accepts accounts with write access to the repository, the Stagr App and, with remediation, the Claude GitHub App. |
+| `stagr plan` asks for `platform.publisher.app_slug` | A stage uses `codex-api`, which posts its reviews as the Stagr App; set the App's slug. |
 | Pull request stays blocked after every stage passed | The default branch's ruleset does not require the merge-gate check as set out in setup step 5 (section 4). |
 | Fast path never triggers | A changed file matches none of `routing.fast_path.globs`. |
 | Config rejected with a secret-name error | A `*_secret` field holds something that is not a valid secret name (for example a pasted token). Put the value in a CI secret and use its name. |

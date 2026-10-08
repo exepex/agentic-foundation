@@ -10,10 +10,13 @@ here, at ``stagr apply`` time, instead of degrading into a weaker check at run t
 - evidence kinds other than the comment-based ``REVIEW_RESULT`` and ``COMMENT_MATCH``;
 - evidence that is not head-bound, has an unknown ``sha_field``, or lacks ``produced_by``;
 - ``FindingScopeSpec.invocation_correlation`` (GitHub V1 has no reliable binding for it);
-- any invocation kind other than ``PR_COMMENT``: the GitHub renderer cannot wire it;
-- a plan without evidence: a ``PR_COMMENT`` invocation completes asynchronously, so nothing could
-  ever prove it finished, and reporting PASS after merely posting the request would be a false
-  signal;
+- an invocation kind other than ``PR_COMMENT`` and ``CI_COMPONENT``, or a ``CI_COMPONENT`` other
+  than the ones in ``SUPPORTED_CI_COMPONENTS``: the GitHub renderer cannot wire it;
+- a plan without evidence: nothing could ever prove the stage finished, and reporting PASS after
+  merely asking the backend to run would be a false signal;
+- a ``CI_COMPONENT`` invocation without a non-empty ``prompt``, an ``output_schema`` holding a JSON
+  object, a ``credential_alias`` the plan declares as a resolved secret, or with a ``model`` that is
+  not plain text;
 - a ``PR_COMMENT`` invocation (issue #205) without a non-empty ``params["body"]``, without the
   ``TRUSTED_COMMENTER_TOKEN`` secret it must be posted with, or with a ``params["lease_minutes"]``
   that is not an integer from 1 to ``MAX_LEASE_MINUTES``. The lease defaults to 30 minutes.
@@ -40,9 +43,11 @@ from stagr.core.enums import (
     InvocationKind,
 )
 from stagr.core.models import EvidenceSpec, ExecutionPlan, NormalizedStage, RenderContext
+from stagr.core.renderers.openai_codex_api_backend_renderer import CODEX_REVIEW_COMPONENT
 from stagr.platforms.github.routing_workflow import ROUTE_CLASSIFICATION_CHECK_RUN_NAME
 from stagr.platforms.github.runtime.stage_signal_runtime import (
     DEFAULT_LEASE_MINUTES,
+    INVOCATION_KIND_CI_COMPONENT,
     INVOCATION_KIND_PR_COMMENT,
     MAX_LEASE_MINUTES,
     TRUSTED_COMMENTER_TOKEN_VARIABLE,
@@ -64,6 +69,12 @@ _REVIEW_SUMMARY_SHA_FIELD = "review_summary_sha"
 _GITHUB_LOGIN_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\[bot\])?$")
 
 _GITHUB_EXPRESSION_OPENER = "${{"
+
+# The CI components the stage workflow can run (see ``stage_workflow``).
+SUPPORTED_CI_COMPONENTS = frozenset({CODEX_REVIEW_COMPONENT})
+
+# A model name goes into the workflow as an action input; letters, digits and . _ - only.
+_MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 @dataclass(frozen=True)
@@ -200,10 +211,13 @@ def _build_gate_document(stage: NormalizedStage, plan: ExecutionPlan) -> dict[st
 
 def _build_invocation_document(stage: NormalizedStage, plan: ExecutionPlan) -> dict[str, Any]:
     invocation = plan.invocation
+    if invocation.kind is InvocationKind.CI_COMPONENT:
+        _require_valid_ci_component(stage, plan)
+        return {"kind": INVOCATION_KIND_CI_COMPONENT}
     if invocation.kind is not InvocationKind.PR_COMMENT:
         raise ValueError(
-            f"Stage '{stage.id}': the GitHub renderer can only wire a PR_COMMENT invocation; got "
-            f"{invocation.kind.name}."
+            f"Stage '{stage.id}': the GitHub renderer can only wire a PR_COMMENT or CI_COMPONENT "
+            f"invocation; got {invocation.kind.name}."
         )
     body = invocation.params.get("body")
     if not isinstance(body, str) or not body.strip():
@@ -267,12 +281,48 @@ def _build_routing_document(render_context: RenderContext) -> dict[str, Any] | N
     }
 
 
+def _require_valid_ci_component(stage: NormalizedStage, plan: ExecutionPlan) -> None:
+    params = plan.invocation.params
+    component = params.get("component")
+    if component not in SUPPORTED_CI_COMPONENTS:
+        raise ValueError(
+            f"Stage '{stage.id}': the GitHub renderer cannot run CI component {component!r}; "
+            f"supported: {', '.join(sorted(SUPPORTED_CI_COMPONENTS))}."
+        )
+    prompt = params.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        raise ValueError(f"Stage '{stage.id}': CI component {component!r} needs a non-empty prompt.")
+    if _GITHUB_EXPRESSION_OPENER in prompt + str(params.get("output_schema", "")):
+        raise ValueError(
+            f"Stage '{stage.id}': the prompt or output schema contains the GitHub expression opener, "
+            f"which Actions would evaluate inside the workflow."
+        )
+    try:
+        output_schema = json.loads(params.get("output_schema", ""))
+    except (TypeError, ValueError):
+        output_schema = None
+    if not isinstance(output_schema, dict):
+        raise ValueError(
+            f"Stage '{stage.id}': CI component {component!r} needs an output_schema holding a JSON "
+            f"object."
+        )
+    credential_alias = params.get("credential_alias")
+    if not any(secret.alias == credential_alias and secret.env_name for secret in plan.required_secrets):
+        raise ValueError(
+            f"Stage '{stage.id}': CI component {component!r} runs with the {credential_alias!r} "
+            f"secret, but the plan declares no resolved secret with that alias."
+        )
+    model = params.get("model")
+    if model is not None and not (isinstance(model, str) and _MODEL_NAME_PATTERN.match(model)):
+        raise ValueError(f"Stage '{stage.id}': model {model!r} is not a plain model name.")
+
+
 def _require_completion_evidence(stage: NormalizedStage, plan: ExecutionPlan) -> None:
     if plan.evidence:
         return
     raise ValueError(
-        f"Stage '{stage.id}': a PR_COMMENT invocation completes asynchronously but the plan "
-        f"declares no EvidenceSpec, so nothing could prove it finished. Declare evidence."
+        f"Stage '{stage.id}': the plan declares no EvidenceSpec, so nothing could prove the stage "
+        f"finished. Declare evidence."
     )
 
 

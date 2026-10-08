@@ -50,6 +50,11 @@
               "$ref": "#/$defs/secretName",
               "description": "NAME of the repository secret that holds the App private key. Never the key itself. Default: STAGR_APP_PRIVATE_KEY.",
               "default": "STAGR_APP_PRIVATE_KEY"
+            },
+            "app_slug": {
+              "type": "string",
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+              "description": "The App's slug: the lowercase name in its URL, github.com/apps/<slug>. Required when a stage uses the `codex-api` backend, which posts its reviews as the App."
             }
           }
         },
@@ -175,7 +180,7 @@
         },
         "enabled": { "type": "boolean", "default": true },
         "provider": { "type": "string", "minLength": 1, "description": "Provider id for this stage. Omit to inherit defaults.provider." },
-        "backend": { "type": "string", "minLength": 1, "description": "Backend that performs the stage. Omit to use the provider's default backend (`openai` -> `codex`)." },
+        "backend": { "type": "string", "minLength": 1, "description": "Backend that performs the stage. Omit to use the provider's default backend (`openai` -> `codex`). `openai` also offers `codex-api`: Codex run in the pipeline on an OpenAI API key." },
         "model": { "$ref": "#/$defs/modelBinding" },
         "skill": { "type": "string", "minLength": 1, "description": "Skill id: the stage's methodology. Resolves to the repository's .agentic/skills/<id>/SKILL.md when present, otherwise to the shipped stagr/templates/skills/<id>/SKILL.md." },
         "triggers": {

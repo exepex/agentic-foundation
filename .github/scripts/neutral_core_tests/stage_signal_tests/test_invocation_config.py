@@ -103,7 +103,7 @@ def test_pr_comment_invocation_needs_the_resolved_trusted_commenter_secret() -> 
 
 def test_runtime_rejects_an_invocation_it_cannot_perform_exactly() -> None:
     valid = {"kind": "pr_comment", "body": "@codex review", "leaseMinutes": 30}
-    _expect_runtime_rejection({**valid, "kind": "ci_component"}, "Unsupported invocation kind")
+    _expect_runtime_rejection({**valid, "kind": "webhook"}, "Unsupported invocation kind")
     _expect_runtime_rejection({**valid, "body": " "}, "non-empty body")
     _expect_runtime_rejection({**valid, "body": 3}, "non-empty body")
     for invalid in (0, -1, runtime.MAX_LEASE_MINUTES + 1, True, "30", 1.5, None):

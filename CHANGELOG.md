@@ -4,6 +4,15 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
+## 0.6.0 — 2026-10-08
+
+Run Codex reviews on an OpenAI API key, without the Codex GitHub App.
+
+### New ([docs/CONFIGURATION.md](docs/CONFIGURATION.md), "Codex backends: `codex` and `codex-api`")
+
+- The `codex-api` backend for `review` and `security` stages.
+- `platform.publisher.app_slug`.
+
 ## 0.5.4 — 2026-10-08
 
 Fix the remediation round limit.
