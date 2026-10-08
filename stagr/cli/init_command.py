@@ -136,7 +136,7 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
         f"(profile {init_arguments.profile}, publisher App {app_id})"
     )
     print(
-        f"next: run `stagr plan` to preview the {len(entries)} pipeline file(s), "
+        f"next: the config produces {len(entries)} pipeline file(s); run `stagr plan` to preview them, "
         "then `stagr apply` to write them"
     )
     return 0

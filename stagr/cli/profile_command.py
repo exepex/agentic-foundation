@@ -114,5 +114,8 @@ def cmd_profile(profile_arguments: argparse.Namespace) -> int:
         print(f"error: {failure}", file=sys.stderr)
         return 1
     print(f"profile: {current_profile} -> {new_profile} in {CONFIG_RELATIVE_PATH.as_posix()}")
-    print(f"next: run `stagr plan` to preview the {entry_count} pipeline file(s), then `stagr apply`")
+    print(
+        f"next: the config now produces {entry_count} pipeline file(s); "
+        "run `stagr plan` to preview the changes, then `stagr apply`"
+    )
     return 0

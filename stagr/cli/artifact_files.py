@@ -75,12 +75,14 @@ def find_stale_artifacts(
     generated_file_header: str,
     produced_paths: frozenset[str],
     claimed_name_patterns: tuple[str, ...] = (),
+    claimed_first_line_prefix: str | None = None,
 ) -> tuple[ArtifactEntry, ...]:
     """Return a ``REMOVE`` entry for each generated file in ``artifact_directory`` not produced now.
 
     Only regular files directly in the directory are candidates: those whose first line is
     ``generated_file_header``, plus (for `--force`) those whose name matches
-    ``claimed_name_patterns``. A symlinked directory or file is skipped, never followed.
+    ``claimed_name_patterns`` and whose first line starts with ``claimed_first_line_prefix``. A
+    symlinked directory or file is skipped, never followed.
     """
     directory_path = project_root
     for segment in artifact_directory.split("/"):
@@ -95,10 +97,13 @@ def find_stale_artifacts(
         if relative_path in produced_paths or candidate_path.is_symlink() or not candidate_path.is_file():
             continue
         candidate_text = candidate_path.read_text(encoding="utf-8", errors="replace")
-        is_claimed_by_name = any(
-            fnmatch.fnmatchcase(candidate_path.name, pattern) for pattern in claimed_name_patterns
+        first_line = candidate_text.split("\n", 1)[0]
+        is_claimed_legacy_file = (
+            claimed_first_line_prefix is not None
+            and first_line.startswith(claimed_first_line_prefix)
+            and any(fnmatch.fnmatchcase(candidate_path.name, pattern) for pattern in claimed_name_patterns)
         )
-        if candidate_text.split("\n", 1)[0] == generated_file_header or is_claimed_by_name:
+        if first_line == generated_file_header or is_claimed_legacy_file:
             stale_entries.append(
                 ArtifactEntry(RenderedArtifact(relative_path, candidate_text), ArtifactStatus.REMOVE)
             )
