@@ -137,6 +137,6 @@ def test_other_invocation_kinds_are_rejected_at_render_time() -> None:
         try:
             render_workflow_text(plan, stage)
         except ValueError as error:
-            assert "can only wire a PR_COMMENT invocation" in str(error), str(error)
+            assert "cannot run CI component None" in str(error), str(error)
             continue
         raise AssertionError(f"expected ValueError for {kind.name}")

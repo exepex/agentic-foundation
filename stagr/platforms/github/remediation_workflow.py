@@ -34,9 +34,13 @@ REMEDIATION_WORKFLOW_FILENAME = "remediation.yml"
 # Hidden marker in the agent's reply on a thread whose finding it fixed.
 FINDING_FIXED_MARKER = "<!-- stagr:finding-fixed -->"
 
+# Account the agent's fix commits are pushed as: the Claude GitHub App. Its push starts the stage
+# workflows again, so a CI component that checks who started its run must allow it.
+REMEDIATION_PUSH_LOGIN = "claude"
+
 # Accounts the agent's thread replies are posted as: the Actions token used by the agent's `gh`
 # calls, and the Claude GitHub App. GraphQL review-thread authors carry no "[bot]" suffix.
-REMEDIATION_REPLY_LOGINS = ("claude", "github-actions")
+REMEDIATION_REPLY_LOGINS = (REMEDIATION_PUSH_LOGIN, "github-actions")
 
 # Every automated fix commit starts with this; counting them counts the fix rounds.
 FIX_COMMIT_PREFIX = "fix(review):"

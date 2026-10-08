@@ -222,6 +222,21 @@ def test_derive_publisher_config_raises_for_unknown_key_and_non_mapping() -> Non
     _assert_derive_raises("99001", "must be a mapping")
 
 
+def test_publisher_app_slug_is_optional_and_must_be_a_slug() -> None:
+    """``app_slug`` names the App's account; schema and derivation accept slugs only."""
+    from stagr.core.publisher import derive_publisher_config
+
+    assert derive_publisher_config(_config_with_publisher({"app_id": 1})).app_slug is None
+    for valid_slug in ("stagr", "stagr-demo-2"):
+        publisher = {"app_id": 1, "app_slug": valid_slug}
+        assert derive_publisher_config(_config_with_publisher(publisher)).app_slug == valid_slug
+        assert not _schema_errors(_config_with_publisher(publisher))
+    for invalid_slug in ("Stagr", "stagr[bot]", "-stagr", "stagr--demo", "stagr demo", "", 5, "stagr\n"):
+        _assert_derive_raises({"app_id": 1, "app_slug": invalid_slug}, "platform.publisher.app_slug")
+        if invalid_slug != "stagr\n":
+            assert _schema_errors(_config_with_publisher({"app_id": 1, "app_slug": invalid_slug})), invalid_slug
+
+
 # ---------------------------------------------------------------------------
 # Front door (validate_config) and shipped configs
 # ---------------------------------------------------------------------------
@@ -291,6 +306,7 @@ PUBLISHER_CONFIG_TESTS = [
     test_derive_publisher_config_raises_for_invalid_app_id,
     test_derive_publisher_config_raises_for_invalid_secret_name,
     test_derive_publisher_config_raises_for_unknown_key_and_non_mapping,
+    test_publisher_app_slug_is_optional_and_must_be_a_slug,
     test_publisher_front_door_accepts_valid_and_absent_block,
     test_publisher_front_door_rejects_what_schema_misses,
     test_publisher_front_door_reports_schema_violation,

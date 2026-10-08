@@ -16,6 +16,7 @@ CHECK_RUN_NAME = "stagr/stage/review"
 CODEX_BOT = "chatgpt-codex-connector[bot]"
 HEAD_SHA = "3f2c9d1e8b7a4c6d5e0f1a2b3c4d5e6f7a8b9c0d"
 OLD_HEAD_SHA = "0123456789abcdef0123456789abcdef01234567"
+BASE_SHA = "89abcdef0123456789abcdef0123456789abcdef"
 PULL_NUMBER = 7
 BASE_REPOSITORY_ID = 500
 
@@ -86,7 +87,7 @@ def build_pull_request(
         "draft": is_draft,
         "author_association": author_association,
         "head": {"sha": head_sha, "repo": {"id": 900 + number if is_fork else BASE_REPOSITORY_ID}},
-        "base": {"repo": {"id": BASE_REPOSITORY_ID}},
+        "base": {"sha": BASE_SHA, "repo": {"id": BASE_REPOSITORY_ID}},
     }
 
 

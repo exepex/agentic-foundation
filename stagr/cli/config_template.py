@@ -71,6 +71,8 @@ def _build_platform_section(app_id: str, setting_prefix: str) -> str:
         f"    app_id: {app_id}\n"
         + _comment(["Name of the secret holding the App's private key."], "    ")
         + _settings(["private_key_secret: STAGR_APP_PRIVATE_KEY"], setting_prefix, "    ")
+        + _comment(["The App's slug, the name in its URL; when to set it: see `publisher.app_slug`."], "    ")
+        + _settings(["app_slug: your-app-slug"], setting_prefix, "    ")
         + _comment(
             [
                 "Pull requests from forks never start a stage (true), so outside code never runs",

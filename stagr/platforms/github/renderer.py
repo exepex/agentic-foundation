@@ -58,6 +58,8 @@ Trigger mapping (design-doc 08):
 """
 from __future__ import annotations
 
+import dataclasses
+
 from stagr.core.enums import InvocationKind, StageResultSignalKind, StageTrigger
 from stagr.core.models import (
     ExecutionPlan,
@@ -68,6 +70,7 @@ from stagr.core.models import (
     StageResultProvenance,
     StageResultSpec,
 )
+from stagr.core.publisher import PUBLISHER_IDENTITY
 from stagr.platforms.github._governance import generate_governance_workflow_yaml
 from stagr.platforms.github.routing_workflow import (
     generate_routing_workflow_yaml,
@@ -79,6 +82,7 @@ from stagr.platforms.github.stage_signal_config import (
 )
 from stagr.platforms.github.stage_workflow import build_on_section, build_stage_workflow_yaml
 from stagr.platforms.github.remediation_workflow import (
+    REMEDIATION_PUSH_LOGIN,
     REMEDIATION_WORKFLOW_FILENAME,
     generate_remediation_workflow_yaml,
 )
@@ -133,11 +137,13 @@ class GitHubPlatformRenderer:
     No method writes to the file system.
     """
 
-    # Only the invocation kinds the stage workflow really performs are declared. A backend whose
-    # plan uses another kind (CI_COMPONENT) is rejected by V-S08
-    # instead of being rendered as a workflow that would report PASS without doing the work.
+    # Only the invocation kinds the stage workflow really performs are declared, so V-S08 rejects a
+    # backend whose plan needs another kind instead of rendering a workflow that would report PASS
+    # without doing the work. A CI_COMPONENT is further limited to the components in
+    # ``stage_signal_config.SUPPORTED_CI_COMPONENTS``.
     SUPPORTED_INVOCATION_KINDS: frozenset[InvocationKind] = frozenset({
         InvocationKind.PR_COMMENT,
+        InvocationKind.CI_COMPONENT,
     })
     ARTIFACT_DIRECTORY = WORKFLOW_DIRECTORY
     GENERATED_FILE_HEADER = GENERATED_FILE_HEADER
@@ -158,6 +164,7 @@ class GitHubPlatformRenderer:
         self,
         publisher_app_id: str,
         publisher_private_key_secret: str,
+        publisher_app_slug: str | None = None,
     ) -> None:
         """Initialise the renderer.
 
@@ -167,9 +174,12 @@ class GitHubPlatformRenderer:
             publisher_private_key_secret: Name of the repository secret that holds
                               the App's RSA private key (e.g. ``STAGR_APP_PRIVATE_KEY``).
                               Rendered as ``${{ secrets.<name> }}`` in the workflow.
+            publisher_app_slug: The App's slug, when known. Its account ``<slug>[bot]`` replaces
+                              ``PUBLISHER_IDENTITY`` in a plan whose results the App posts.
         """
         self._publisher_app_id = publisher_app_id
         self._publisher_private_key_secret = publisher_private_key_secret
+        self._publisher_app_slug = publisher_app_slug
 
     # ------------------------------------------------------------------
     # PlatformRenderer Protocol — Phase 1
@@ -189,6 +199,7 @@ class GitHubPlatformRenderer:
         ``plan.required_secrets``) but any of its triggers cannot be satisfied by
         ``pull_request_target`` — a security invariant violation.
         """
+        plan = self._resolve_publisher_identity(plan, stage)
         is_privileged = bool(plan.required_secrets)
         check_run_name = build_stage_check_run_name(stage.id)
         signal_config = build_stage_signal_config(
@@ -204,6 +215,7 @@ class GitHubPlatformRenderer:
             on_section_yaml,
             self._publisher_app_id,
             self._publisher_private_key_secret,
+            self._list_component_starter_bots(render_context),
         )
 
         return StageRender(
@@ -318,6 +330,44 @@ class GitHubPlatformRenderer:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _list_component_starter_bots(self, render_context: RenderContext) -> tuple[str, ...]:
+        """Bot accounts whose events may start a CI component: the Stagr App (a dependency
+        wake-up) and, with remediation on, the agent whose fix push starts the stage again."""
+        starter_bots = (self._publisher_app_slug,) if self._publisher_app_slug else ()
+        if render_context.remediation_policy is not None:
+            starter_bots += (REMEDIATION_PUSH_LOGIN,)
+        return starter_bots
+
+    def _resolve_publisher_identity(self, plan: ExecutionPlan, stage: NormalizedStage) -> ExecutionPlan:
+        """Return ``plan`` with ``PUBLISHER_IDENTITY`` replaced by the App's account ``<slug>[bot]``.
+
+        A backend whose results the App posts names the publisher with the placeholder; without
+        ``platform.publisher.app_slug`` the account is unknown, so rendering stops here.
+        """
+        uses_publisher = any(spec.produced_by == PUBLISHER_IDENTITY for spec in plan.evidence) or (
+            plan.gate_disposition.scope is not None
+            and plan.gate_disposition.scope.created_by == PUBLISHER_IDENTITY
+        )
+        if not uses_publisher:
+            return plan
+        if not self._publisher_app_slug:
+            raise ValueError(
+                f"Stage '{stage.id}': its backend posts results as the Stagr App, so set "
+                "platform.publisher.app_slug to the App's slug (the name in github.com/apps/<slug>)."
+            )
+        publisher_login = f"{self._publisher_app_slug}[bot]"
+        evidence = tuple(
+            dataclasses.replace(spec, produced_by=publisher_login)
+            if spec.produced_by == PUBLISHER_IDENTITY else spec
+            for spec in plan.evidence
+        )
+        gate = plan.gate_disposition
+        if gate.scope is not None and gate.scope.created_by == PUBLISHER_IDENTITY:
+            gate = dataclasses.replace(
+                gate, scope=dataclasses.replace(gate.scope, created_by=publisher_login)
+            )
+        return dataclasses.replace(plan, evidence=evidence, gate_disposition=gate)
 
     def _assert_privileged_stage_on_section_is_safe(
         self,

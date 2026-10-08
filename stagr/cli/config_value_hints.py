@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from stagr.core.backend_names import DEFAULT_BACKEND_BY_PROVIDER
 from stagr.core.config_validation import load_schema
 from stagr.core.enums import StageGate
 from stagr.core.skill_validator import SHIPPED_SKILLS_DIRECTORY
@@ -34,7 +35,12 @@ def build_stage_hints() -> dict[str, str]:
     gates = sorted(
         {"blocking" if gate is StageGate.BLOCKING else "advisory" for renderer in renderers for gate in renderer.supported_gates}
     )
-    providers = [f"{renderer.provider} ({renderer.backend})" for renderer in renderers]
+    backends_by_provider: dict[str, list[str]] = {}
+    for renderer in renderers:
+        backends_by_provider.setdefault(renderer.provider, []).append(renderer.backend)
+    providers = [
+        _describe_provider(provider, backends) for provider, backends in backends_by_provider.items()
+    ]
     shipped_skills = sorted(path.name for path in SHIPPED_SKILLS_DIRECTORY.iterdir() if path.is_dir())
     return {
         "id": "unique; lowercase letters, digits, - and _",
@@ -45,6 +51,17 @@ def build_stage_hints() -> dict[str, str]:
         "triggers": f"any of: {_join(stage_properties['triggers']['items']['enum'])}",
         "depends_on": "ids of stages that must pass first",
     }
+
+
+def _describe_provider(provider: str, backends: list[str]) -> str:
+    """``openai (backend: codex by default, or codex-api)``: the default first, then the others."""
+    default_backend = DEFAULT_BACKEND_BY_PROVIDER.get(provider)
+    other_backends = [backend for backend in backends if backend != default_backend]
+    if default_backend not in backends:
+        return f"{provider} (backend: {', '.join(backends)})"
+    if not other_backends:
+        return f"{provider} ({default_backend})"
+    return f"{provider} (backend: {default_backend} by default, or {', '.join(other_backends)})"
 
 
 def build_platform_hints() -> dict[str, str]:
