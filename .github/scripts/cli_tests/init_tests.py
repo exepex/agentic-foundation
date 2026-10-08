@@ -110,6 +110,38 @@ def test_init_requires_an_existing_root() -> None:
         check(not missing_root.exists(), "init: a missing project root is not created")
 
 
+def make_review_workflow_a_symlink(project_root: Path, link_target: Path) -> None:
+    """Make a target `stagr plan` checks unsafe, so the check after the write fails."""
+    workflows_directory = project_root / ".github" / "workflows"
+    workflows_directory.mkdir(parents=True)
+    os.symlink(link_target, workflows_directory / "stage-review.yml")
+
+
+def test_init_removes_its_config_when_the_check_fails() -> None:
+    with empty_project() as project_root, empty_project() as outside_directory:
+        make_review_workflow_a_symlink(project_root, outside_directory / "target.yml")
+        exit_code, _, stderr = run_cli(["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID])
+        check(exit_code == 1 and "symlink" in stderr, "init: a failing check after the write exits 1")
+        check(
+            not (project_root / AGENTIC_DIRECTORY).exists(),
+            "init: a failing check removes the config and the .agentic directory init created",
+        )
+
+
+def test_init_keeps_an_existing_agentic_directory_on_failure() -> None:
+    with empty_project() as project_root, empty_project() as outside_directory:
+        (project_root / AGENTIC_DIRECTORY).mkdir()
+        (project_root / AGENTIC_DIRECTORY / "notes.txt").write_text("keep", encoding="utf-8")
+        make_review_workflow_a_symlink(project_root, outside_directory / "target.yml")
+        exit_code, _, _ = run_cli(["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID])
+        check(
+            exit_code == 1
+            and not (project_root / CONFIG_FILE_PATH).exists()
+            and (project_root / AGENTIC_DIRECTORY / "notes.txt").exists(),
+            "init: a failing check removes only the config, not an .agentic directory that existed",
+        )
+
+
 INIT_TESTS = (
     test_init_writes_a_config_that_plan_accepts,
     test_init_minimal_profile,
@@ -119,4 +151,6 @@ INIT_TESTS = (
     test_init_never_overwrites_an_existing_config,
     test_init_refuses_a_symlinked_config_directory,
     test_init_requires_an_existing_root,
+    test_init_removes_its_config_when_the_check_fails,
+    test_init_keeps_an_existing_agentic_directory_on_failure,
 )

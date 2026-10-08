@@ -82,8 +82,8 @@ can bend the toolkit to how they deploy and host:
    For a reproducible, auditable install, pin the URL to a commit SHA (or a release tag) instead of
    `main` — see [docs/CLI.md](docs/CLI.md).
 2. Run `stagr help` to see the available commands.
-3. In your target repo, run `stagr init` to write `.agentic/config.yml`. It asks for your Stagr publisher
-   App ID. The starter skills ship with Stagr, so no other file is needed. The full field reference
+3. In your target repo, run `stagr init` ([docs/CLI.md](docs/CLI.md)). The starter skills ship with
+   Stagr, so no other file is needed. The full field reference
    (including how to override a skill), provider→secret mapping, and troubleshooting are in
    **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**.
 4. Run `stagr plan` in the repo root to validate the config and list the files it produces (nothing is

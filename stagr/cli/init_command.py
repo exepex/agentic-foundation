@@ -54,9 +54,9 @@ def build_starter_config(profile: str, app_id: str) -> str:
     )
 
 
-def read_app_id(args: argparse.Namespace) -> str:
+def read_app_id(init_arguments: argparse.Namespace) -> str:
     """Return ``--app-id``, or ask for it on an interactive terminal; reject a non-numeric ID."""
-    app_id = args.app_id
+    app_id = init_arguments.app_id
     if app_id is None:
         if not sys.stdin.isatty():
             raise ConfigError("the publisher App ID is required; pass --app-id <numeric ID>")
@@ -64,28 +64,54 @@ def read_app_id(args: argparse.Namespace) -> str:
     return derive_publisher_config({"platform": {"publisher": {"app_id": app_id.strip()}}}).app_id
 
 
-def cmd_init(args: argparse.Namespace) -> int:
-    """`stagr init`: write `.agentic/config.yml`, then check it the way `stagr plan` does."""
+def remove_created_paths(created_paths: list[Path]) -> None:
+    """Remove the config file and, if `init` created it, its now-empty directory (newest first)."""
+    for created_path in reversed(created_paths):
+        if created_path.is_dir() and not created_path.is_symlink():
+            if not any(created_path.iterdir()):
+                created_path.rmdir()
+        else:
+            created_path.unlink(missing_ok=True)
+
+
+def cmd_init(init_arguments: argparse.Namespace) -> int:
+    """`stagr init`: write `.agentic/config.yml`, then check it the way `stagr plan` does.
+
+    Any failure after the write removes what `init` created, so a retry starts from a clean root.
+    """
+    project_root = init_arguments.root
     config_path = CONFIG_RELATIVE_PATH.as_posix()
+    created_paths: list[Path] = []
     try:
-        if not args.root.is_dir():
-            raise ConfigError(f"project root {args.root} is not a directory")
-        app_id = read_app_id(args)
-        starter_artifact = RenderedArtifact(config_path, build_starter_config(args.profile, app_id))
-        (config_entry,) = classify_artifacts(args.root, (starter_artifact,))
+        if not project_root.is_dir():
+            raise ConfigError(f"project root {project_root} is not a directory")
+        app_id = read_app_id(init_arguments)
+        starter_artifact = RenderedArtifact(
+            config_path, build_starter_config(init_arguments.profile, app_id)
+        )
+        (config_entry,) = classify_artifacts(project_root, (starter_artifact,))
         if config_entry.status is not ArtifactStatus.NEW:
             raise ConfigError(
-                f"{config_path} already exists under {args.root}; edit it, or delete it to start over"
+                f"{config_path} already exists under {project_root}; edit it, or delete it to start over"
             )
-        write_artifacts(args.root, (config_entry,))
-        entries = run_pipeline(args.root)
+        config_directory = project_root / CONFIG_RELATIVE_PATH.parent
+        if not config_directory.exists():
+            created_paths.append(config_directory)
+        created_paths.append(project_root / CONFIG_RELATIVE_PATH)
+        write_artifacts(project_root, (config_entry,))
+        entries = run_pipeline(project_root)
     except (EOFError, KeyboardInterrupt):
+        remove_created_paths(created_paths)
         print("\ninit: cancelled; nothing was written", file=sys.stderr)
         return 1
     except PIPELINE_FAILURES as failure:
+        remove_created_paths(created_paths)
         print(f"error: {failure}", file=sys.stderr)
         return 1
-    print(f"init: wrote {config_path} under {args.root} (profile {args.profile}, publisher App {app_id})")
+    print(
+        f"init: wrote {config_path} under {project_root} "
+        f"(profile {init_arguments.profile}, publisher App {app_id})"
+    )
     print(
         f"next: run `stagr plan` to preview the {len(entries)} pipeline file(s), "
         "then `stagr apply` to write them"
