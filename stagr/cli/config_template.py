@@ -25,7 +25,9 @@ CONFIGURATION_GUIDE = "the Stagr configuration guide (CONFIGURATION.md)"
 
 def build_config_template(profile: str, app_id: str, optional_blocks_enabled: bool = False) -> str:
     """Return the full config text for ``profile`` and the publisher App ``app_id``."""
-    setting_prefix = "" if optional_blocks_enabled else "# "
+    # No space after `#` on a setting, so deleting the `#` alone, or an editor's toggle-comment
+    # (which also takes one space when there is one), both leave valid YAML.
+    setting_prefix = "" if optional_blocks_enabled else "#"
     sections = [
         _build_header(),
         "version: 2\n",
@@ -45,7 +47,8 @@ def _build_header() -> str:
         "# before it can merge. Edit this file, then run `stagr plan` to preview the workflow files\n"
         "# and `stagr apply` to write them. Each setting is explained, under its name, in\n"
         f"# {CONFIGURATION_GUIDE}.\n"
-        "# Blocks starting with `#` are off: uncomment one (remove the `# ` before each line) to use it.\n"
+        "# Settings starting with `#` are off: to use a block, delete the `#` at the start of each of its\n"
+        "# lines. Lines starting with `# ` explain the setting below them; leave those as they are.\n"
     )
 
 

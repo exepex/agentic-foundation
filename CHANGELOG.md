@@ -4,6 +4,14 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
+## 0.5.3 — 2026-10-08
+
+Uncommenting a block of the `stagr init` template gives valid YAML.
+
+### Fixed ([docs/CLI.md](docs/CLI.md), `stagr init`)
+
+- Uncommenting a template block by deleting its `#` no longer breaks the config.
+
 ## 0.5.2 — 2026-10-08
 
 Regenerate an existing config as the full template, and see each setting's allowed values in it.

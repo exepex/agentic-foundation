@@ -28,9 +28,9 @@ def test_template_turns_on_only_the_required_keys_and_the_profile() -> None:
 def test_template_offers_every_optional_block_commented_out() -> None:
     template_text = build_config_template("standard", PUBLISHER_APP_ID)
     for block in OPTIONAL_BLOCKS:
-        check(f"\n# {block}:\n" in template_text, f"template: offers `{block}` commented out")
+        check(f"\n#{block}:\n" in template_text, f"template: offers `{block}` commented out")
     for platform_key in ("private_key_secret", "same_repo_only", "trusted_roles", "auth", "labels"):
-        check(f"# {platform_key}:" in template_text, f"template: offers platform `{platform_key}` commented out")
+        check(f"  #{platform_key}:" in template_text, f"template: offers platform `{platform_key}` commented out")
     check("#   security  on in: standard" in template_text, "template: the stage catalog names each stage's profiles")
 
 
@@ -74,10 +74,42 @@ def test_init_writes_the_template_and_profile_switch_keeps_it() -> None:
         )
 
 
+def _uncomment_settings(template_text: str, enabled_text: str, removed_prefix: str) -> str:
+    """Uncomment every setting line (a line that differs in the enabled variant) the way a user would.
+
+    ``removed_prefix`` is what the user deletes after the indentation: "#" by hand, or "# " when an
+    editor's toggle-comment also takes the space that follows the `#`.
+    """
+    uncommented_lines = []
+    for template_line, enabled_line in zip(template_text.splitlines(), enabled_text.splitlines()):
+        if template_line != enabled_line:
+            indentation = template_line[: len(template_line) - len(template_line.lstrip())]
+            body = template_line.lstrip()
+            prefix = removed_prefix if body.startswith(removed_prefix) else "#"
+            template_line = indentation + body[len(prefix):]
+        uncommented_lines.append(template_line)
+    return "\n".join(uncommented_lines) + "\n"
+
+
+def test_uncommenting_a_block_by_hand_or_by_editor_gives_valid_yaml() -> None:
+    template_text = build_config_template("minimal", PUBLISHER_APP_ID)
+    enabled_text = build_config_template("minimal", PUBLISHER_APP_ID, optional_blocks_enabled=True)
+    for removed_prefix, method in (("#", "deleting the `#`"), ("# ", "an editor's toggle-comment")):
+        try:
+            uncommented = yaml.safe_load(_uncomment_settings(template_text, enabled_text, removed_prefix))
+        except yaml.YAMLError as parse_error:
+            uncommented = f"invalid YAML: {str(parse_error).splitlines()[0]}"
+        check(
+            uncommented == yaml.safe_load(enabled_text),
+            f"template: uncommenting every block by {method} gives the enabled config ({str(uncommented)[:80]})",
+        )
+
+
 CONFIG_TEMPLATE_TESTS = (
     test_template_turns_on_only_the_required_keys_and_the_profile,
     test_template_offers_every_optional_block_commented_out,
     test_every_optional_block_uncommented_still_validates,
+    test_uncommenting_a_block_by_hand_or_by_editor_gives_valid_yaml,
     test_init_writes_the_template_and_profile_switch_keeps_it,
 )
 
