@@ -127,7 +127,7 @@ platform:
   publisher:
     app_id: 123456                          # the App's numeric ID (not a secret)
     private_key_secret: STAGR_APP_PRIVATE_KEY   # NAME of the secret holding the App private key
-    app_slug: my-stagr-app                  # only for the codex-api backend
+    app_slug: my-stagr-app                  # when to set it: `publisher.app_slug` above
 ```
 
 Steps for the operator: create the GitHub App, install it on the repository, save its private key as a
@@ -177,7 +177,7 @@ the same reasoning rules. They differ in how Codex is started and who pays for i
 |---|---|---|
 | How Codex runs | The **Codex GitHub App** reviews when the workflow posts `@codex review` (or `@codex security review`) | The stage workflow runs Codex itself, with [`openai/codex-action`](https://github.com/openai/codex-action) |
 | Billed to | The ChatGPT plan connected to the repository, within its review limits | The OpenAI API key, per use |
-| Needs | The Codex GitHub App ([setup](#4-setup-steps)) and `REMEDIATION_TOKEN` | `OPENAI_API_KEY`, `platform.publisher.app_slug`, and write permissions for the Stagr App ([Publisher](#publisher-stagr-github-app)) |
+| Needs | The Codex GitHub App ([setup](#4-setup-steps)) and `REMEDIATION_TOKEN` | `OPENAI_API_KEY`, plus the Stagr App settings for this backend: `publisher.app_slug` ([`platform`](#platform)) and the App's permissions ([Publisher](#publisher-stagr-github-app)) |
 | Findings posted by | The Codex bot | The Stagr App, as one review per commit with a comment on each finding's line |
 
 To switch a profile's stages to `codex-api`, override them by `id`:
@@ -332,7 +332,7 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 |---|---|
 | Reviewer never runs on Codex | `REMEDIATION_TOKEN` missing or not a real-user PAT, or the Codex GitHub App is not installed. |
 | A `codex-api` stage fails in "Review the change with Codex" | `OPENAI_API_KEY` is missing or has no credit, or the run was started by an account the action refuses: it accepts accounts with write access to the repository, the Stagr App and, with remediation, the Claude GitHub App. |
-| `stagr plan` asks for `platform.publisher.app_slug` | A stage uses `codex-api`, which posts its reviews as the Stagr App; set the App's slug. |
+| `stagr plan` asks for `platform.publisher.app_slug` | The field is not set; see `publisher.app_slug` in [`platform`](#platform). |
 | Pull request stays blocked after every stage passed | The default branch's ruleset does not require the merge-gate check as set out in setup step 5 (section 4). |
 | Fast path never triggers | A changed file matches none of `routing.fast_path.globs`. |
 | Config rejected with a secret-name error | A `*_secret` field holds something that is not a valid secret name (for example a pasted token). Put the value in a CI secret and use its name. |

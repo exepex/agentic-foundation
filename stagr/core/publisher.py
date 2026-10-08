@@ -1,16 +1,16 @@
 """Platform publisher configuration for the neutral-core pipeline.
 
 The publisher is the Stagr GitHub App that publishes Stagr-owned platform signals
-(Check Runs). Two config keys describe it:
+(Check Runs). Three config keys describe it:
 
 - ``platform.publisher.app_id``: the App's numeric ID. It is not a secret and is
   rendered as a literal into generated workflows. It has no default.
 - ``platform.publisher.private_key_secret``: the NAME of the repository secret
   holding the App private key (never the key itself). Defaults to
   ``STAGR_APP_PRIVATE_KEY``.
-- ``platform.publisher.app_slug``: the App's slug (the name in its URL). Optional; a backend that
-  posts its results as the publisher (``PUBLISHER_IDENTITY``) needs it, because the platform names
-  the App's account after the slug.
+- ``platform.publisher.app_slug``: the App's slug (the name in its URL); when it is required:
+  docs/CONFIGURATION.md, ``publisher.app_slug``. The GitHub renderer turns it into the App's account
+  (``<slug>[bot]``), which replaces ``PUBLISHER_IDENTITY`` in a plan whose results the App posts.
 
 The whole block is optional in the config schema. ``derive_publisher_config`` is called only by
 code that needs the publisher, and raises ``ConfigError`` when it is missing or invalid.
