@@ -17,7 +17,7 @@ from stagr.core.publisher import derive_publisher_config
 
 from .artifact_files import ArtifactStatus, classify_artifacts
 from .plan_apply import PIPELINE_FAILURES, validate_and_render
-from .profile_command import build_profile_guide
+from .config_template import build_config_template
 from .render_pipeline import CONFIG_RELATIVE_PATH
 
 STARTER_PROFILES = ("minimal", "standard")
@@ -41,19 +41,6 @@ def add_init_arguments(init_parser: argparse.ArgumentParser) -> None:
         choices=STARTER_PROFILES,
         default=DEFAULT_STARTER_PROFILE,
         help=f"starter stage graph (default: {DEFAULT_STARTER_PROFILE})",
-    )
-
-
-def build_starter_config(profile: str, app_id: str) -> str:
-    """Return the starter config text for ``profile`` and the publisher App ``app_id``."""
-    return (
-        "version: 2\n"
-        f"{build_profile_guide()}"
-        f"profile: {profile}\n"
-        "platform:\n"
-        "  type: github\n"
-        "  publisher:\n"
-        f"    app_id: {app_id}\n"
     )
 
 
@@ -116,7 +103,7 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
             raise ConfigError(f"project root {project_root} is not a directory")
         app_id = read_app_id(init_arguments)
         starter_artifact = RenderedArtifact(
-            config_path, build_starter_config(init_arguments.profile, app_id)
+            config_path, build_config_template(init_arguments.profile, app_id)
         )
         (config_entry,) = classify_artifacts(project_root, (starter_artifact,))
         if config_entry.status is not ArtifactStatus.NEW:
