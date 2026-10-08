@@ -40,7 +40,7 @@ logged** — only the secret *names* the contract references.
 >
 > ```bash
 > # a release, by its tag:
-> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.5.1.tar.gz"
+> pipx install "https://github.com/exepex/agentic-foundation/archive/refs/tags/v0.5.2.tar.gz"
 > # reproducible — replace <commit> with a specific commit SHA:
 > pipx install "https://github.com/exepex/agentic-foundation/archive/<commit>.tar.gz"
 > # or the latest tip of main (evaluation only, mutable):
@@ -76,7 +76,7 @@ stagr help <command>  # detail for one command (also: `stagr <command> help`)
 ### `stagr init`
 
 ```bash
-stagr init [--app-id ID] [--profile minimal|standard] [--root DIR]
+stagr init [--app-id ID] [--profile minimal|standard] [--force] [--root DIR]
 ```
 
 Onboards a repository: writes `<root>/.agentic/config.yml`, the one file `plan` and `apply` read.
@@ -88,8 +88,12 @@ Onboards a repository: writes `<root>/.agentic/config.yml`, the one file `plan` 
   under `profile` in [CONFIGURATION.md](CONFIGURATION.md).
 - **Checks** the config it wrote with the same validation as `stagr plan` (it does not look at the
   workflow files), then prints how many pipeline files the config produces.
-- **Never overwrites** an existing config: edit that file, or delete it to start over. Like `apply`, it
-  refuses to write through a symlink, and it does not create a missing `--root`.
+- **Never overwrites** an existing config unless you pass `--force`. Like `apply`, it refuses to write
+  through a symlink, and it does not create a missing `--root`.
+- **`--force` regenerates** an existing config as the full template. It keeps the config's profile and
+  publisher App ID unless you pass `--profile` or `--app-id`; a `custom` config needs `--profile`.
+  Every other active setting goes back to its commented form, and `init` lists each one it turned
+  off so you can uncomment what you still want.
 - **Writes the full template.** Only `version`, `profile` and the publisher App are active. Every
   other option that changes what Stagr generates (platform trust settings, provider secrets, the
   stage catalog, the fast path, `remediation`) is present but commented out, under a short comment on

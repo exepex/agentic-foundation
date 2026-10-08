@@ -80,3 +80,64 @@ CONFIG_TEMPLATE_TESTS = (
     test_every_optional_block_uncommented_still_validates,
     test_init_writes_the_template_and_profile_switch_keeps_it,
 )
+
+
+DEMO_CONFIG = (
+    "version: 2\nprofile: minimal\nplatform:\n  type: github\n  publisher:\n    app_id: 5239405\n"
+    "remediation:\n  provider: anthropic\n"
+)
+
+
+def test_init_force_regenerates_keeping_profile_and_app_id() -> None:
+    with starter_project(DEMO_CONFIG) as project_root:
+        exit_code, stdout, stderr = run_cli(["init", "--force", "--root", str(project_root)])
+        regenerated_text = (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8")
+        check(
+            exit_code == 0 and regenerated_text == build_config_template("minimal", PUBLISHER_APP_ID),
+            f"init --force: regenerates the template with the existing profile and App ID ({stderr.strip()})",
+        )
+        check(
+            "regenerated" in stdout and "now commented out in the template: remediation" in stdout,
+            "init --force: names every active setting it turned off",
+        )
+
+
+def test_init_without_force_still_refuses_and_points_to_force() -> None:
+    with starter_project(DEMO_CONFIG) as project_root:
+        exit_code, _, stderr = run_cli(["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID])
+        kept_text = (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8")
+        check(
+            exit_code == 1 and "stagr init --force" in stderr and kept_text == DEMO_CONFIG,
+            "init: an existing config is kept and the error points to --force",
+        )
+
+
+def test_init_force_flags_override_the_existing_values() -> None:
+    with starter_project(DEMO_CONFIG) as project_root:
+        exit_code, _, _ = run_cli(["init", "--force", "--root", str(project_root), "--profile", "standard", "--app-id", "42"])
+        check(
+            exit_code == 0
+            and (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8") == build_config_template("standard", "42"),
+            "init --force: --profile and --app-id win over the existing config",
+        )
+
+
+def test_init_force_refuses_a_custom_config_without_a_profile_flag() -> None:
+    custom_config = DEMO_CONFIG.replace("profile: minimal", "profile: custom") + (
+        "stages:\n  - id: review\n    type: review\n    provider: openai\n    gate: blocking\n"
+    )
+    with starter_project(custom_config) as project_root:
+        exit_code, _, stderr = run_cli(["init", "--force", "--root", str(project_root)])
+        kept_text = (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8")
+        check(
+            exit_code == 1 and "pass --profile" in stderr and kept_text == custom_config,
+            "init --force: a custom config is kept unless --profile names a starter profile",
+        )
+
+
+CONFIG_TEMPLATE_TESTS = CONFIG_TEMPLATE_TESTS + (
+    test_init_force_regenerates_keeping_profile_and_app_id,
+    test_init_without_force_still_refuses_and_points_to_force,
+    test_init_force_flags_override_the_existing_values,
+    test_init_force_refuses_a_custom_config_without_a_profile_flag,
+)
