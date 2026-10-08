@@ -14,7 +14,10 @@ Modes (``STAGR_MODE``), both with the App token:
 - ``post_review`` publish job, after the component ran. Posts its findings
                   (``STAGR_REVIEW_FINDINGS``) as one pull request review with a comment on each
                   finding's line, then the completion marker that satisfies the stage's evidence
-                  rule. Posts nothing when the head moved since the review or the marker exists.
+                  rule. Posts nothing when the head moved since the review or the marker exists, and
+                  only the marker when an earlier attempt already posted the review (the review
+                  carries a hidden tag naming its stage and head), so a failed marker write is
+                  resumed without a duplicate review.
 """
 from __future__ import annotations
 
@@ -51,10 +54,13 @@ STEP_OUTPUT_HEAD_SHA_NAME = "head_sha"
 STEP_OUTPUT_BASE_SHA_NAME = "base_sha"
 FULL_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
-# At most this many findings are posted per review, each cut to this many characters, so a
-# runaway reply cannot flood the pull request.
+# A review with more findings than this is refused (the stage fails) rather than posted in part,
+# and each finding's text is cut to this many characters, so a runaway reply cannot flood the pull
+# request and no reported finding is dropped silently.
 MAX_POSTED_FINDINGS = 50
 MAX_FINDING_TEXT_LENGTH = 3000
+# GitHub lists at most this many changed files of a pull request.
+MAX_LISTED_CHANGED_FILES = 3000
 HUNK_HEADER_PATTERN = re.compile(r"^@@ -[0-9]+(?:,[0-9]+)? \+([0-9]+)(?:,[0-9]+)? @@")
 
 
@@ -108,8 +114,13 @@ def parse_review_findings(findings_text: str) -> tuple[ReviewFinding, ...]:
     raw_findings = document.get("findings") if isinstance(document, dict) else None
     if not isinstance(raw_findings, list):
         raise ValueError("the review output has no findings list")
+    if len(raw_findings) > MAX_POSTED_FINDINGS:
+        raise ValueError(
+            f"the review reported {len(raw_findings)} findings, more than the {MAX_POSTED_FINDINGS} "
+            "a review may post; review the change by hand"
+        )
     findings: list[ReviewFinding] = []
-    for raw_finding in raw_findings[:MAX_POSTED_FINDINGS]:
+    for raw_finding in raw_findings:
         if not isinstance(raw_finding, dict):
             raise ValueError("a review finding is not an object")
         path, line = raw_finding.get("path"), raw_finding.get("line")
@@ -148,7 +159,9 @@ class ReviewPoster:
 
     A finding on a changed file is attached to its line, or to the nearest line the review can
     reach (its text then names the reported line). A finding on a file the pull request does not
-    change has no line to attach to: it is listed in the review body and does not block.
+    change, or deletes, has no line to attach to: it is listed in the review body and does not
+    block. A finding that cannot be placed for want of data (a changed file GitHub shows no patch
+    for, or a file list cut at GitHub's limit) fails the step instead, so it never passes unseen.
     """
 
     def __init__(
@@ -176,27 +189,47 @@ class ReviewPoster:
             return runtime.ReconcileResult(
                 runtime.ACTION_SKIPPED, "the review for this head was already posted"
             )
-        if findings:
+        if findings and not self._has_posted_review(pull):
             self._post_review(pull, findings)
         marker_comment = {"body": self._build_marker_comment(pull, len(findings))}
         self._github_api.send_json("POST", comments_path, marker_comment)
         return runtime.ReconcileResult(ACTION_POSTED, f"{len(findings)} finding(s)")
 
+    def _review_tag(self, pull: Any) -> str:
+        return f"<!-- stagr-review-posted:{self._config.stage_id}:{pull.head_sha.lower()} -->"
+
+    def _has_posted_review(self, pull: Any) -> bool:
+        """True when the stage's review for this head exists (written by the evidence producer)."""
+        producers = {rule.produced_by for rule in self._config.evidence_rules}
+        tag = self._review_tag(pull)
+        return any(
+            tag in (review.get("body") or "")
+            and any(runtime.is_rest_user_expected_identity(review.get("user") or {}, producer) for producer in producers)
+            for review in self._github_api.get_items(
+                f"repos/{self._repository}/pulls/{pull.number}/reviews?per_page=100"
+            )
+        )
+
     def _post_review(self, pull: Any, findings: tuple[ReviewFinding, ...]) -> None:
         changed_files = self._github_api.get_items(
             f"repos/{self._repository}/pulls/{pull.number}/files?per_page=100"
         )
-        commentable_lines_by_path = {
-            str(changed_file.get("filename")): list_commentable_lines(str(changed_file.get("patch") or ""))
-            for changed_file in changed_files
-        }
+        is_file_list_complete = len(changed_files) < MAX_LISTED_CHANGED_FILES
+        changed_file_by_path = {str(changed_file.get("filename")): changed_file for changed_file in changed_files}
         inline_comments: list[dict[str, Any]] = []
         unattached_findings: list[ReviewFinding] = []
         for finding in findings:
-            commentable_lines = commentable_lines_by_path.get(finding.path) or []
-            if not commentable_lines:
+            changed_file = changed_file_by_path.get(finding.path)
+            is_unchanged_file = changed_file is None and is_file_list_complete
+            if is_unchanged_file or (changed_file or {}).get("status") == "removed":
                 unattached_findings.append(finding)
                 continue
+            commentable_lines = list_commentable_lines(str((changed_file or {}).get("patch") or ""))
+            if not commentable_lines:
+                raise ValueError(
+                    f"a finding on {finding.path} cannot be attached: GitHub shows no patch for it, or "
+                    "lists too many changed files to show it; review the change by hand"
+                )
             line = min(commentable_lines, key=lambda candidate: abs(candidate - finding.line))
             text = f"**{finding.title}**\n\n{finding.body}"
             if line != finding.line:
@@ -204,7 +237,7 @@ class ReviewPoster:
             inline_comments.append({"path": finding.path, "line": line, "side": "RIGHT", "body": text})
         body = (
             f"**Codex {self._config.stage_id} review** of `{pull.head_sha[:7]}`: "
-            f"{len(findings)} finding(s)."
+            f"{len(findings)} finding(s).\n\n{self._review_tag(pull)}"
         )
         if unattached_findings:
             body += "\n\nIn files this pull request does not change (not blocking):\n" + "\n".join(

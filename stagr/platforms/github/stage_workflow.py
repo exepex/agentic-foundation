@@ -47,6 +47,7 @@ from stagr.platforms.github.action_pins import (
     APP_TOKEN_ACTION_REF,
     CHECKOUT_ACTION_REF,
     CODEX_ACTION_REF,
+    CODEX_CLI_VERSION,
 )
 from stagr.platforms.github.stage_expressions import (
     build_concurrency_key_expression,
@@ -348,7 +349,9 @@ def _build_ci_component_jobs(
 def _build_codex_review_job(plan: ExecutionPlan, component_starter_bots: tuple[str, ...]) -> str:
     """The job that runs Codex read-only on the head with the API key, and no App token.
 
-    The checkout keeps no credentials and Codex runs without sudo in a read-only sandbox. The
+    The checkout keeps no credentials and Codex runs without sudo in a read-only sandbox. Codex
+    reads no ``AGENTS.md`` from the checkout (``project_doc_max_bytes=0``): the change under review
+    must not be able to instruct its own reviewer. The CLI version is pinned like the action. The
     action refuses a run started by a bot it does not list, so ``component_starter_bots`` (already
     vetted by the eligibility step's trust checks) are listed.
     """
@@ -393,6 +396,8 @@ def _build_codex_review_job(plan: ExecutionPlan, component_starter_bots: tuple[s
         '          output-file: "${{ runner.temp }}/stagr-review-findings.json"\n'
         "          sandbox: read-only\n"
         "          safety-strategy: drop-sudo\n"
+        f'          codex-version: "{CODEX_CLI_VERSION}"\n'
+        """          codex-args: '["--config", "project_doc_max_bytes=0"]'\n"""
         f"{optional_inputs}"
         "\n"
         "      - name: Hand the findings to the publish job\n"

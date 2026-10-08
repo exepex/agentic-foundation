@@ -191,11 +191,63 @@ def test_malformed_component_output_fails_the_step() -> None:
         assert fake.write_calls == []
 
 
-def test_findings_are_capped_and_trimmed() -> None:
-    findings = [_finding("src/CommentService.java", 11, "x" * 5000)] * (ci_runtime.MAX_POSTED_FINDINGS + 5)
+def test_too_many_findings_fail_instead_of_being_cut() -> None:
+    findings = [_finding("src/CommentService.java", 11, "x" * 5000)] * ci_runtime.MAX_POSTED_FINDINGS
     parsed = ci_runtime.parse_review_findings(json.dumps({"findings": findings}))
     assert len(parsed) == ci_runtime.MAX_POSTED_FINDINGS
     assert len(parsed[0].title) == ci_runtime.MAX_FINDING_TEXT_LENGTH
+    try:
+        ci_runtime.parse_review_findings(json.dumps({"findings": findings + findings[:1]}))
+    except ValueError as error:
+        assert "more than the" in str(error)
+        return
+    raise AssertionError("an overlong finding list must fail, not be cut")
+
+
+def test_a_finding_that_cannot_be_placed_fails_instead_of_passing_unseen() -> None:
+    fake = _app_world()
+    fake.pull_files[PULL_NUMBER].append({"filename": "src/Big.java", "status": "modified"})
+    try:
+        _post(fake, [_finding("src/Big.java", 5)])
+    except ValueError as error:
+        assert "src/Big.java" in str(error)
+    else:
+        raise AssertionError("a changed file without a patch must fail the step")
+    truncated = _app_world()
+    truncated.pull_files[PULL_NUMBER] = [{"filename": f"f{index}", "patch": CHANGED_PATCH}
+                                         for index in range(ci_runtime.MAX_LISTED_CHANGED_FILES)]
+    try:
+        _post(truncated, [_finding("src/Beyond.java", 5)])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a path missing from a cut file list must fail the step")
+    removed = _app_world()
+    removed.pull_files[PULL_NUMBER].append({"filename": "src/Gone.java", "status": "removed", "patch": "@@ -1 +0,0 @@\n-x\n"})
+    assert _post(removed, [_finding("src/Gone.java", 1)]).action == ci_runtime.ACTION_POSTED
+    assert "`src/Gone.java:1`" in removed.reviews[0]["body"] and removed.reviews[0]["comments"] == []
+
+
+def test_a_failed_marker_write_is_resumed_without_a_second_review() -> None:
+    fake = _app_world()
+    fake.failing_write_fragments.append(f"issues/{PULL_NUMBER}/comments")
+    try:
+        _post(fake, [_finding("src/CommentService.java", 11)])
+    except runtime.GitHubApiError:
+        pass
+    else:
+        raise AssertionError("the injected marker failure must surface")
+    assert len(fake.reviews) == 1 and not fake.issue_comments[PULL_NUMBER]
+    fake.failing_write_fragments.clear()
+    assert _post(fake, [_finding("src/CommentService.java", 11)]).action == ci_runtime.ACTION_POSTED
+    assert len(fake.reviews) == 1, "the review of this head was already posted"
+    assert len(fake.issue_comments[PULL_NUMBER]) == 1
+    other_author = _app_world()
+    other_author.reviews.append({"pull_number": PULL_NUMBER, "user": {"login": "stagr-demo", "type": "User"},
+                                 "body": f"<!-- stagr-review-posted:review:{HEAD_SHA} -->"})
+    _post(other_author, [_finding("src/CommentService.java", 11)])
+    assert len(other_author.reviews) == 2, "a look-alike human's tag must not suppress the review"
+
 
 
 def test_the_entry_point_runs_both_modes_and_rejects_others() -> None:

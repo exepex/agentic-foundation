@@ -104,6 +104,8 @@ class FakeGitHubApi:
         if resource == ["pulls"]:
             assert items_key is None and query["state"] == ["open"], path
             return [pull for pull in self.pull_requests.values() if pull["state"] == "open"]
+        if resource[0] == "pulls" and resource[2:] == ["reviews"]:
+            return [review for review in self.reviews if review["pull_number"] == int(resource[1])]
         if resource[0] == "pulls" and resource[2:] == ["files"]:
             assert items_key is None, path
             return list(self.pull_files.get(int(resource[1]), []))

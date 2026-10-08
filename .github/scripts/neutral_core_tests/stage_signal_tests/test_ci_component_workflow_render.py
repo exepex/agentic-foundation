@@ -19,7 +19,7 @@ from stagr.core.renderers.openai_codex_api_backend_renderer import (
     OpenAICodexApiBackendRenderer,
 )
 from stagr.core.renderers.openai_codex_backend_renderer import CODEX_REVIEW_GUIDELINES
-from stagr.platforms.github.action_pins import CHECKOUT_ACTION_REF, CODEX_ACTION_REF
+from stagr.platforms.github.action_pins import CHECKOUT_ACTION_REF, CODEX_ACTION_REF, CODEX_CLI_VERSION
 from stagr.platforms.github.renderer import GitHubPlatformRenderer
 from stagr.platforms.github.runtime import stage_signal_runtime as runtime
 
@@ -121,6 +121,10 @@ def test_no_job_holds_both_the_app_token_and_the_openai_key() -> None:
     codex = _step(review, "Review the change")["with"]
     assert _step(review, "Review the change")["uses"] == CODEX_ACTION_REF.split()[0]
     assert (codex["sandbox"], codex["safety-strategy"]) == ("read-only", "drop-sudo")
+    assert codex["codex-version"] == CODEX_CLI_VERSION, "the CLI is pinned like the action"
+    assert json.loads(codex["codex-args"]) == ["--config", "project_doc_max_bytes=0"], (
+        "the change under review must not instruct its reviewer through AGENTS.md"
+    )
     assert codex["prompt"].endswith(
         "Base commit: ${{ needs.execute.outputs.base_sha }}\nHead commit: ${{ needs.execute.outputs.head_sha }}"
     )

@@ -54,7 +54,7 @@
             "app_slug": {
               "type": "string",
               "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
-              "description": "The App's slug: the lowercase name in its URL, github.com/apps/<slug>. Required when a stage uses the `codex-api` backend, which posts its reviews as the App."
+              "description": "The App's slug: the lowercase name in its URL, github.com/apps/<slug>. When it is required: docs/CONFIGURATION.md, `publisher.app_slug`."
             }
           }
         },
