@@ -253,6 +253,6 @@ If you ever see a secret value in a log or comment, treat it as compromised and 
 | Symptom | Likely cause |
 |---|---|
 | Reviewer never runs on Codex | `REMEDIATION_TOKEN` missing or not a real-user PAT, or the Codex GitHub App is not installed. |
-| Pull request stays blocked after every stage passed | The ruleset requires a check other than `stagr/governance`, or a `stagr/governance` check from a source other than the Stagr App (setup step 5). |
+| Pull request stays blocked after every stage passed | The default branch's ruleset does not require the merge-gate check as set out in setup step 5 (section 4). |
 | Fast path never triggers | A changed file matches none of `routing.fast_path.globs`. |
 | Config rejected with a secret-name error | A `*_secret` field holds something that is not a valid secret name (for example a pasted token). Put the value in a CI secret and use its name. |
