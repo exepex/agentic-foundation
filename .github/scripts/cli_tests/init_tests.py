@@ -142,6 +142,29 @@ def test_init_keeps_an_existing_agentic_directory_on_failure() -> None:
         )
 
 
+def test_init_never_replaces_a_config_written_after_its_check() -> None:
+    """A config that appears between init's existence check and its write is kept (exclusive create)."""
+    from stagr.cli import init_command
+
+    original_classify = init_command.classify_artifacts
+
+    def classify_then_race(project_root, artifacts):  # another process writes the config first
+        entries = original_classify(project_root, artifacts)
+        (project_root / AGENTIC_DIRECTORY).mkdir(exist_ok=True)
+        (project_root / CONFIG_FILE_PATH).write_text("version: 2\n", encoding="utf-8")
+        return entries
+
+    with empty_project() as project_root:
+        init_command.classify_artifacts = classify_then_race
+        try:
+            exit_code, _, stderr = run_cli(["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID])
+        finally:
+            init_command.classify_artifacts = original_classify
+        kept_text = (project_root / CONFIG_FILE_PATH).read_text(encoding="utf-8")
+        check(exit_code == 1 and "already exists" in stderr, "init: a config written concurrently exits 1")
+        check(kept_text == "version: 2\n", "init: a config written concurrently is neither replaced nor removed")
+
+
 INIT_TESTS = (
     test_init_writes_a_config_that_plan_accepts,
     test_init_minimal_profile,
@@ -153,4 +176,5 @@ INIT_TESTS = (
     test_init_requires_an_existing_root,
     test_init_removes_its_config_when_the_check_fails,
     test_init_keeps_an_existing_agentic_directory_on_failure,
+    test_init_never_replaces_a_config_written_after_its_check,
 )

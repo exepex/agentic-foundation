@@ -14,7 +14,7 @@ from pathlib import Path
 from stagr.core.models import ConfigError, RenderedArtifact
 from stagr.core.publisher import derive_publisher_config
 
-from .artifact_files import ArtifactStatus, classify_artifacts, write_artifacts
+from .artifact_files import ArtifactStatus, classify_artifacts
 from .plan_apply import PIPELINE_FAILURES, run_pipeline
 from .render_pipeline import CONFIG_RELATIVE_PATH
 
@@ -64,6 +64,32 @@ def read_app_id(init_arguments: argparse.Namespace) -> str:
     return derive_publisher_config({"platform": {"publisher": {"app_id": app_id.strip()}}}).app_id
 
 
+def existing_config_error(project_root: Path) -> ConfigError:
+    return ConfigError(
+        f"{CONFIG_RELATIVE_PATH.as_posix()} already exists under {project_root}; "
+        "edit it, or delete it to start over"
+    )
+
+
+def create_config_exclusively(project_root: Path, config_text: str, created_paths: list[Path]) -> None:
+    """Create the config only if no file exists at its path, recording each path this call creates.
+
+    The exclusive open ("x") refuses an existing file, so a config another process wrote first is
+    never replaced, and ``created_paths`` names only what this invocation owns.
+    """
+    config_directory = project_root / CONFIG_RELATIVE_PATH.parent
+    if not config_directory.exists():
+        config_directory.mkdir(exist_ok=True)
+        created_paths.append(config_directory)
+    config_file_path = project_root / CONFIG_RELATIVE_PATH
+    try:
+        with open(config_file_path, "x", encoding="utf-8") as config_file:
+            created_paths.append(config_file_path)
+            config_file.write(config_text)
+    except FileExistsError as error:
+        raise existing_config_error(project_root) from error
+
+
 def remove_created_paths(created_paths: list[Path]) -> None:
     """Remove the config file and, if `init` created it, its now-empty directory (newest first)."""
     for created_path in reversed(created_paths):
@@ -91,14 +117,8 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
         )
         (config_entry,) = classify_artifacts(project_root, (starter_artifact,))
         if config_entry.status is not ArtifactStatus.NEW:
-            raise ConfigError(
-                f"{config_path} already exists under {project_root}; edit it, or delete it to start over"
-            )
-        config_directory = project_root / CONFIG_RELATIVE_PATH.parent
-        if not config_directory.exists():
-            created_paths.append(config_directory)
-        created_paths.append(project_root / CONFIG_RELATIVE_PATH)
-        write_artifacts(project_root, (config_entry,))
+            raise existing_config_error(project_root)
+        create_config_exclusively(project_root, starter_artifact.content, created_paths)
         entries = run_pipeline(project_root)
     except (EOFError, KeyboardInterrupt):
         remove_created_paths(created_paths)
