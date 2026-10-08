@@ -6,7 +6,8 @@
 2. ``platform.publisher`` derivation (App id and secret NAME), when the block is present;
 3. normalization: profile (V-S01), dependency references (V-S05), acyclicity (V-S04) and
    provider resolution;
-4. V-S06 (skill files exist), when a ``project_root`` is given.
+4. V-S16 (the profile's stages stay enabled and blocking);
+5. V-S06 (skill files exist), when a ``project_root`` is given.
 
 It has no side effects and never reads a secret value. The checks that need the renderers
 (V-S07 to V-S09) live in ``static_validator.py``.
@@ -21,6 +22,7 @@ from jsonschema import Draft202012Validator
 
 from .errors import ConfigSchemaError
 from .pipeline import expand_active_stages, normalize_config
+from .profile_requirements import validate_profile_stage_requirements
 from .publisher import derive_publisher_config
 from .skill_validator import validate_skill_file_existence
 
@@ -68,7 +70,8 @@ def validate_config(config: dict[str, Any], project_root: Path | None = None) ->
         ConfigError: ``platform.publisher`` is invalid, or a stage's provider or backend
             cannot be resolved.
         StaticValidationError: a dependency reference is unknown (V-S05), the graph has a
-            cycle (V-S04), or a skill file is missing (V-S06).
+            cycle (V-S04), a stage the profile requires is off or not blocking (V-S16), or a skill
+            file is missing (V-S06).
         ValueError: the profile is unrecognised (V-S01), or a stage has no id or a duplicate id.
 
     ``project_root`` is the directory that contains ``.agentic/``. When it is ``None`` the
@@ -78,5 +81,6 @@ def validate_config(config: dict[str, Any], project_root: Path | None = None) ->
     if "publisher" in (config.get("platform") or {}):
         derive_publisher_config(config)
     normalize_config(config)
+    validate_profile_stage_requirements(config)
     if project_root is not None:
         validate_skill_file_existence(expand_active_stages(config), project_root)

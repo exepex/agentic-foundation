@@ -17,7 +17,9 @@ from stagr.core.normalize import expand_profile_defaults, list_built_in_stages
 
 from .profile_command import build_profile_guide
 
-CONFIGURATION_GUIDE = "docs/CONFIGURATION.md"
+# The guide every comment points to. Named, not linked: the template must not publish where the
+# Stagr source lives, and a relative path would point into the user's own repository.
+CONFIGURATION_GUIDE = "the Stagr configuration guide (CONFIGURATION.md)"
 
 
 def build_config_template(profile: str, app_id: str, optional_blocks_enabled: bool = False) -> str:
@@ -40,8 +42,8 @@ def _build_header() -> str:
     return (
         "# Stagr pipeline for this repository: what runs on every pull request and what must pass\n"
         "# before it can merge. Edit this file, then run `stagr plan` to preview the workflow files\n"
-        "# and `stagr apply` to write them. Every setting is explained in "
-        f"{CONFIGURATION_GUIDE}.\n"
+        "# and `stagr apply` to write them. Each setting is explained, under its name, in\n"
+        f"# {CONFIGURATION_GUIDE}.\n"
         "# Blocks starting with `#` are off: uncomment one (remove the `# ` before each line) to use it.\n"
     )
 
@@ -109,9 +111,8 @@ def _build_stages_section(setting_prefix: str) -> str:
     for stage, profile_names in built_in_stages:
         catalog_lines.append(f"  {stage['id']:<9} on in: {', '.join(profile_names)}")
     catalog_lines += [
-        "Stages of your profile are already on; you do not list them. Uncomment a stage below to",
-        "add one your profile lacks or to change one (for example `gate: advisory` reports",
-        "findings without blocking the merge). A stage listed here replaces the profile's version.",
+        "Your profile's stages are already on and required (validation V-S16). Uncomment a stage",
+        "below to add one your profile lacks or to change a stage's settings; see `stages`.",
     ]
     stage_lines = ["stages:"]
     for stage, _ in built_in_stages:
@@ -130,8 +131,8 @@ def _build_routing_section(profile: str, setting_prefix: str) -> str:
         [
             "Fast path: a pull request that changes only files matching `globs` (for example",
             "documentation) runs only the `fast` stages, so small changes get a faster, cheaper",
-            "review; every other pull request runs the `normal` stages. A stage left out of a",
-            "list does not run on that route: after switching profile, update both lists.",
+            "review; every other pull request runs the `normal` stages. See `routing.fast_path`;",
+            "after switching profile, update both lists.",
         ]
     ) + _settings(
         [
@@ -150,10 +151,9 @@ def _build_routing_section(profile: str, setting_prefix: str) -> str:
 def _build_remediation_section(setting_prefix: str) -> str:
     return _comment(
         [
-            "Automated fixes: after each review, Claude Code judges every finding, fixes the real",
-            "ones and declines the rest with its reasons, so reviews turn into fixes without a",
-            "person in the loop. After `max_rounds` fix rounds a human takes over. Needs the",
-            "ANTHROPIC_API_KEY secret and the Claude GitHub App on this repository.",
+            "Automated fixes: an agent answers each review, fixing the findings it judges real and",
+            "declining the rest with its reasons, so reviews turn into fixes without waiting on a",
+            "person. Optional under every profile; setup and limits: see `remediation`.",
         ]
     ) + _settings(
         ["remediation:", "  provider: anthropic", "  max_rounds: 5", "  api_key_secret: ANTHROPIC_API_KEY"],
