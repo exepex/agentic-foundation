@@ -3,7 +3,8 @@
 `init` asks for the one value Stagr cannot know, the numeric ID of the Stagr publisher GitHub App
 (or takes it from `--app-id`), and writes a config for the chosen profile. It never overwrites an
 existing config and never writes through a symlink. The config it writes is checked by the same
-pipeline `stagr plan` runs, so `init` followed by `plan` always validates.
+validation `stagr plan` runs, so the config itself always validates; `init` does not read the
+workflow files, so `plan` can still refuse one Stagr did not generate (see `--force`).
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from stagr.core.models import ConfigError, RenderedArtifact
 from stagr.core.publisher import derive_publisher_config
 
 from .artifact_files import ArtifactStatus, classify_artifacts
-from .plan_apply import PIPELINE_FAILURES, run_pipeline
+from .plan_apply import PIPELINE_FAILURES, validate_and_render
 from .profile_command import build_profile_guide
 from .render_pipeline import CONFIG_RELATIVE_PATH
 
@@ -121,7 +122,7 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
         if config_entry.status is not ArtifactStatus.NEW:
             raise existing_config_error(project_root)
         create_config_exclusively(project_root, starter_artifact.content, created_paths)
-        entries = run_pipeline(project_root)
+        entries = validate_and_render(project_root)
     except (EOFError, KeyboardInterrupt):
         remove_created_paths(created_paths)
         print("\ninit: cancelled; nothing was written", file=sys.stderr)
@@ -135,7 +136,7 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
         f"(profile {init_arguments.profile}, publisher App {app_id})"
     )
     print(
-        f"next: run `stagr plan` to preview the {len(entries)} pipeline file(s), "
+        f"next: the config produces {len(entries)} pipeline file(s); run `stagr plan` to preview them, "
         "then `stagr apply` to write them"
     )
     return 0

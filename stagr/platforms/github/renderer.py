@@ -127,6 +127,16 @@ class GitHubPlatformRenderer:
     })
     ARTIFACT_DIRECTORY = WORKFLOW_DIRECTORY
     GENERATED_FILE_HEADER = GENERATED_FILE_HEADER
+    # `stagr apply --force` also claims a stale file without the header when its name is one this
+    # renderer produces AND its first line is a Stagr workflow name, which is how files written by
+    # an older Stagr start. A team's own `stage-deploy.yml` fails the second test and is kept.
+    GENERATED_FILE_NAME_PATTERNS: tuple[str, ...] = (
+        "stage-*.yml",
+        ROUTING_WORKFLOW_FILENAME,
+        GOVERNANCE_WORKFLOW_FILENAME,
+    )
+    GENERATED_WORKFLOW_NAME_PREFIX = 'name: "Stagr '
+
 
     def __init__(
         self,

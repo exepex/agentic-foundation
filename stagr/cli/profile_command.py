@@ -2,7 +2,7 @@
 
 `stagr profile` prints every profile with the stages it expands to and marks the one the config
 uses. `stagr profile <name>` rewrites only the config's top-level `profile:` line, keeping every
-other line and comment, then checks the result with the same pipeline as `stagr plan`; a config
+other line and comment, then checks the result with the same validation as `stagr plan`; a config
 that does not validate is restored. The profile descriptions come from the profile definitions
 (`describe_profile`), so the listing, the guide `stagr init` writes, and the real stage graph agree.
 """
@@ -18,7 +18,7 @@ from stagr.core.models import ConfigError, RenderedArtifact
 from stagr.core.normalize import DEFAULT_PROFILE_NAME, PROFILE_NAMES, describe_profile
 
 from .artifact_files import classify_artifacts, write_artifacts
-from .plan_apply import PIPELINE_FAILURES, run_pipeline
+from .plan_apply import PIPELINE_FAILURES, validate_and_render
 from .render_pipeline import CONFIG_RELATIVE_PATH
 
 PROFILE_LINE_PATTERN = re.compile(r"^profile:.*$", re.MULTILINE)
@@ -82,7 +82,7 @@ def switch_profile(project_root: Path, config_text: str, profile_name: str) -> i
             raise ConfigError(
                 "could not set the profile: write the key as a plain top-level `profile: <name>` line"
             )
-        entries = run_pipeline(project_root)
+        entries = validate_and_render(project_root)
     except PIPELINE_FAILURES:
         original_artifact = RenderedArtifact(config_path, config_text)
         write_artifacts(project_root, classify_artifacts(project_root, (original_artifact,)))
@@ -114,5 +114,8 @@ def cmd_profile(profile_arguments: argparse.Namespace) -> int:
         print(f"error: {failure}", file=sys.stderr)
         return 1
     print(f"profile: {current_profile} -> {new_profile} in {CONFIG_RELATIVE_PATH.as_posix()}")
-    print(f"next: run `stagr plan` to preview the {entry_count} pipeline file(s), then `stagr apply`")
+    print(
+        f"next: the config now produces {entry_count} pipeline file(s); "
+        "run `stagr plan` to preview the changes, then `stagr apply`"
+    )
     return 0

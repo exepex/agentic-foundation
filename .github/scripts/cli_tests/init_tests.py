@@ -110,18 +110,28 @@ def test_init_requires_an_existing_root() -> None:
         check(not missing_root.exists(), "init: a missing project root is not created")
 
 
-def make_review_workflow_a_symlink(project_root: Path, link_target: Path) -> None:
-    """Make a target `stagr plan` checks unsafe, so the check after the write fails."""
-    workflows_directory = project_root / ".github" / "workflows"
-    workflows_directory.mkdir(parents=True)
-    os.symlink(link_target, workflows_directory / "stage-review.yml")
+@contextmanager
+def failing_validation() -> Iterator[None]:
+    """Make the check `init` runs after writing the config fail, as an invalid config would."""
+    from stagr.cli import init_command
+    from stagr.core.models import ConfigError
+
+    original_validate = init_command.validate_and_render
+
+    def raise_config_error(project_root: Path) -> None:
+        raise ConfigError("simulated validation failure")
+
+    init_command.validate_and_render = raise_config_error
+    try:
+        yield
+    finally:
+        init_command.validate_and_render = original_validate
 
 
 def test_init_removes_its_config_when_the_check_fails() -> None:
-    with empty_project() as project_root, empty_project() as outside_directory:
-        make_review_workflow_a_symlink(project_root, outside_directory / "target.yml")
+    with empty_project() as project_root, failing_validation():
         exit_code, _, stderr = run_cli(["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID])
-        check(exit_code == 1 and "symlink" in stderr, "init: a failing check after the write exits 1")
+        check(exit_code == 1 and "simulated" in stderr, "init: a failing check after the write exits 1")
         check(
             not (project_root / AGENTIC_DIRECTORY).exists(),
             "init: a failing check removes the config and the .agentic directory init created",
@@ -129,10 +139,9 @@ def test_init_removes_its_config_when_the_check_fails() -> None:
 
 
 def test_init_keeps_an_existing_agentic_directory_on_failure() -> None:
-    with empty_project() as project_root, empty_project() as outside_directory:
+    with empty_project() as project_root, failing_validation():
         (project_root / AGENTIC_DIRECTORY).mkdir()
         (project_root / AGENTIC_DIRECTORY / "notes.txt").write_text("keep", encoding="utf-8")
-        make_review_workflow_a_symlink(project_root, outside_directory / "target.yml")
         exit_code, _, _ = run_cli(["init", "--root", str(project_root), "--app-id", PUBLISHER_APP_ID])
         check(
             exit_code == 1
