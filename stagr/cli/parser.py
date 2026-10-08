@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .init_command import add_init_arguments, cmd_init
 from .plan_apply import add_project_root_argument, cmd_apply, cmd_plan
 
 
@@ -36,6 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
     help_parser = subparsers.add_parser("help", help="show help for all commands, or `stagr help <command>`")
     help_parser.add_argument("topic", nargs="?", help="a command name to describe in detail")
     help_parser.set_defaults(func=cmd_help)
+
+    init_parser = subparsers.add_parser(
+        "init", help="write a starter .agentic/config.yml; asks for the publisher App ID"
+    )
+    add_init_arguments(init_parser)
+    init_parser.set_defaults(func=cmd_init)
 
     plan_parser = subparsers.add_parser(
         "plan", help="validate the config and list the files apply would write; writes nothing"

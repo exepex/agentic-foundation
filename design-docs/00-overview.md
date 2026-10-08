@@ -24,8 +24,8 @@ The three-layer model:
 Stagr operates only at the **Render** layer. It writes the wiring; the platform runs
 the work.
 
-Today the Stagr commands are `stagr help`, `stagr plan` and `stagr apply`. `stagr init` and
-`stagr doctor` are planned; this set describes them as they will work. The renderers return the
+The Stagr commands that exist today are listed in [docs/CLI.md](../docs/CLI.md); this set also
+describes the planned ones as they will work. The renderers return the
 artifacts that `plan` lists and `apply` writes.
 
 ---

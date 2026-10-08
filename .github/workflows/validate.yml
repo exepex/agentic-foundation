@@ -76,6 +76,9 @@ jobs:
           # Plan this repository's own config from the installed wheel: proves the packaged schema,
           # renderers and skills work together, and (being `plan`) writes nothing.
           /tmp/stagr-ci-venv/bin/stagr plan --root "$GITHUB_WORKSPACE" >/dev/null
+          # Onboard an empty repository the way a new team does: init, then plan.
+          ( cd "$(mktemp -d)" && /tmp/stagr-ci-venv/bin/stagr init --app-id 1 >/dev/null \
+            && /tmp/stagr-ci-venv/bin/stagr plan >/dev/null )
           ( cd "$(mktemp -d)" && /tmp/stagr-ci-venv/bin/python -c "
           from stagr.core.config_validation import SCHEMA_PATH, load_schema
           assert SCHEMA_PATH.is_file() and load_schema()['title']
