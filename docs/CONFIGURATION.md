@@ -210,9 +210,9 @@ How a round works:
   contract, or a missing test for changed behavior. Hypothetical or highly unlikely cases, misuse the
   contract already rules out, style, and fixes that cost more than the risk are declined. When in
   doubt, it declines. Codex is asked for the same standard with every review request.
-- **Fixed finding.** The agent changes the code, replies on the thread with what it changed, then
-  pushes one commit starting `fix(review):`. That push starts the next review, and the resolution
-  workflow resolves the thread (see "Files written" in [CLI.md](CLI.md)).
+- **Fixed finding.** The agent changes the code and pushes one commit starting `fix(review):`; only
+  after the push succeeds does it reply on the thread with what it changed. That push starts the next
+  review, and the resolution workflow resolves the thread (see "Files written" in [CLI.md](CLI.md)).
 - **Declined finding.** The agent replies with its evidence and leaves the thread open. An open
   finding thread on the current commit keeps the merge gate blocked, so a human decides: resolve the
   thread to accept the decline, or answer it with a review comment, which the agent picks up as a new

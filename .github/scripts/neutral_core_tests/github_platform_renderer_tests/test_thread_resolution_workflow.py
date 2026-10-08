@@ -104,6 +104,16 @@ def test_thread_resolution_follows_the_trust_policy_roles() -> None:
     assert "fromJSON('[\"MEMBER\", \"OWNER\"]')" in artifact.content
 
 
+def test_thread_resolution_also_runs_when_a_review_arrives() -> None:
+    """The review of a fix commit comes after the agent's fixed replies, so it must resolve them."""
+    artifact = build_renderer().render_thread_resolution(
+        (_build_result_spec(f"{CODEX_BOT_LOGIN}[bot]"),), build_render_context(build_stage()), TRUSTED_COMMENTER_ENV_NAME
+    )
+    triggers = yaml.safe_load(artifact.content)[True]
+    assert triggers["pull_request_review"] == {"types": ["submitted"]}
+    assert triggers["pull_request_target"] == {"types": ["opened", "reopened", "synchronize"]}
+
+
 def test_thread_resolution_matches_only_bot_actors() -> None:
     """GraphQL drops "[bot]", so a human account named like the bot must never count as the bot."""
     step = _load_resolution_job(f"{CODEX_BOT_LOGIN}[bot]")["steps"][0]
@@ -123,6 +133,7 @@ def test_thread_resolution_skips_stages_that_do_not_review_every_commit() -> Non
 
 
 THREAD_RESOLUTION_WORKFLOW_TESTS = (
+    test_thread_resolution_also_runs_when_a_review_arrives,
     test_thread_resolution_matches_only_bot_actors,
     test_thread_resolution_skips_stages_that_do_not_review_every_commit,
     test_codex_stage_declares_its_bot_as_finding_author,

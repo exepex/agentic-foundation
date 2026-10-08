@@ -11,10 +11,8 @@ automated fixing stops after a set number of rounds.
 
 ### New config section ([docs/CONFIGURATION.md](docs/CONFIGURATION.md), `remediation`)
 
-- `remediation` turns on an agent (Claude Code Action) that answers every review from Codex or a
-  trusted human: it fixes the findings it judges real and declines the rest with its reasons. A
-  declined finding stays open for a human. After `max_rounds` fix rounds (default 5) the pull request
-  is handed to a human.
+- `remediation` turns on an agent (Claude Code Action) that fixes or declines review findings, with a
+  limit on automated fix rounds.
 
 ### New generated workflows ([docs/CLI.md](docs/CLI.md), "Files written")
 

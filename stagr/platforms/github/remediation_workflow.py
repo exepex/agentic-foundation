@@ -5,8 +5,8 @@ answers every review from a stage's review backend or a trusted human reviewer. 
 each finding on evidence, fixes the ones that are real and declines the rest with its reasons.
 
 Thread protocol (read by the outdated-thread resolution workflow):
-- a fixed finding gets a reply carrying ``FINDING_FIXED_MARKER``, posted before the fix is pushed;
-  the resolution workflow then resolves that thread;
+- a fixed finding gets a reply carrying ``FINDING_FIXED_MARKER``, posted only after the fix is
+  pushed; the resolution workflow resolves that thread once the review of the fix commit arrives;
 - a declined finding gets a reply with the reasons and no marker; the thread stays open, so the
   merge gate stays blocked until a human resolves it.
 
@@ -224,21 +224,22 @@ review ${{{{ github.event.review.id }}}}.
    ask again, and a needless patch is worse than a declined finding.
 
 3. For each real finding: make the smallest correct change. Do not touch files under .github/ or
-   .agentic/. Then reply on its thread, before pushing:
+   .agentic/.
+
+4. If you changed anything, make one commit whose message starts with "{FIX_COMMIT_PREFIX} " and
+   names each finding fixed, then push it:
+   git push origin HEAD:${{{{ github.event.pull_request.head.ref }}}}
+   The reviewed commit is checked out, so a rejected push means the branch moved: stop, reply on no
+   thread as fixed, and report it.
+
+5. Only after the push succeeded, reply on the thread of each finding you fixed:
    gh api repos/${{{{ github.repository }}}}/pulls/${{{{ github.event.pull_request.number }}}}/comments/<comment id>/replies -f body="<what you changed and why it fixes the finding>
 
    {FINDING_FIXED_MARKER}"
-   Put that marker only on findings you fixed.
-
-4. For each declined finding: reply on its thread with your evidence (the guard that already
-   prevents it, why the triggering input is unrealistic, or why the fix costs more than it buys).
-   Do not put the marker on a declined finding. Never resolve a thread yourself.
-
-5. If you fixed at least one finding, make one commit whose message starts with
-   "{FIX_COMMIT_PREFIX} " and names each finding fixed, then push it:
-   git push origin HEAD:${{{{ github.event.pull_request.head.ref }}}}
-   The reviewed commit is checked out, so a rejected push means the branch moved: stop and report
-   it. If you fixed nothing, do not commit.
+   Put that marker only on findings whose fix you pushed. For each declined finding, reply on its
+   thread with your evidence (the guard that already prevents it, why the triggering input is
+   unrealistic, or why the fix costs more than it buys), without the marker. Never resolve a thread
+   yourself.
 
 6. Finish with a short summary: each finding, fixed or declined, in one line.
 """
