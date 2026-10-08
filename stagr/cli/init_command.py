@@ -165,10 +165,13 @@ def regenerate_config(project_root: Path, config_text: str) -> None:
     write_artifacts(project_root, classify_artifacts(project_root, (config_artifact,)))
 
 
-def restore_config(project_root: Path, replaced_bytes: bytes | None) -> None:
-    """Put back the exact bytes `--force` replaced (line endings included), if it replaced any."""
-    if replaced_bytes is not None:
-        (project_root / CONFIG_RELATIVE_PATH).write_bytes(replaced_bytes)
+def restore_config(project_root: Path, replaced_text: str | None) -> None:
+    """Put back the text `--force` replaced, if it replaced any, through the same symlink-refusing write.
+
+    The text was decoded from the raw bytes (no newline translation), so line endings come back exact.
+    """
+    if replaced_text is not None:
+        regenerate_config(project_root, replaced_text)
 
 
 def cmd_init(init_arguments: argparse.Namespace) -> int:
@@ -180,7 +183,7 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
     project_root = init_arguments.root
     config_path = CONFIG_RELATIVE_PATH.as_posix()
     created_paths: list[Path] = []
-    replaced_bytes: bytes | None = None
+    replaced_text: str | None = None
     try:
         if not project_root.is_dir():
             raise ConfigError(f"project root {project_root} is not a directory")
@@ -192,24 +195,24 @@ def cmd_init(init_arguments: argparse.Namespace) -> int:
         if config_entry.status is ArtifactStatus.NEW:
             create_config_exclusively(project_root, config_text, created_paths)
         elif init_arguments.force:
-            replaced_bytes = (project_root / CONFIG_RELATIVE_PATH).read_bytes()
+            replaced_text = (project_root / CONFIG_RELATIVE_PATH).read_bytes().decode("utf-8")
             regenerate_config(project_root, config_text)
         else:
             raise existing_config_error(project_root)
         entries = validate_and_render(project_root)
     except (EOFError, KeyboardInterrupt):
         remove_created_paths(created_paths)
-        restore_config(project_root, replaced_bytes)
+        restore_config(project_root, replaced_text)
         print("\ninit: cancelled; nothing was written", file=sys.stderr)
         return 1
     except PIPELINE_FAILURES as failure:
         remove_created_paths(created_paths)
-        restore_config(project_root, replaced_bytes)
+        restore_config(project_root, replaced_text)
         print(f"error: {failure}", file=sys.stderr)
         return 1
-    action = "regenerated" if replaced_bytes is not None else "wrote"
+    action = "regenerated" if replaced_text is not None else "wrote"
     print(f"init: {action} {config_path} under {project_root} (profile {profile}, publisher App {app_id})")
-    if replaced_bytes is not None:
+    if replaced_text is not None:
         report_settings_turned_off(existing_config, config_text, profile, app_id)
     print(
         f"next: the config produces {len(entries)} pipeline file(s); run `stagr plan` to preview them, "
