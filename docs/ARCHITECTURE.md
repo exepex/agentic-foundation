@@ -34,7 +34,7 @@ The toolkit is deliberately split so each concern can change without disturbing 
 | Layer | Responsibility | Configured by |
 |---|---|---|
 | **1. Contract** | Declarative, platform-neutral description of the pipeline. | `.agentic/config.yml` (this schema) |
-| **2. Provider adapters** | Talk to a model vendor (Claude / OpenAI / Gemini / local / gateway). Give true provider-agnosticism. | `providers`, `defaults.models` |
+| **2. Provider adapters** | Talk to a model vendor (Claude / OpenAI / Gemini / local / gateway). Give true provider-agnosticism. | `stages[].provider`, `defaults.models`, `secrets` |
 | **3. Agent tools** | Execute a stage. The tool is derived from the provider (`openai` → Codex); roadmap adapters wrap other OSS agents. | `stages[].provider` (or `stages[].backend` to pin) |
 | **4. Platform/SCM adapters** | Render the neutral pipeline into a concrete CI system and normalize concepts (PR↔MR, roles, checks). | `platform` |
 | **5. CLI** | The `stagr` command; see [CLI.md](CLI.md). | — |

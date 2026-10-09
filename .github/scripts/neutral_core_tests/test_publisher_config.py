@@ -1,8 +1,8 @@
 """Tests for platform.publisher config: schema, derive_publisher_config, front-door validation.
 
 ``platform.publisher`` is optional. It carries ``app_id`` (the Stagr GitHub App's numeric ID, no
-default) and ``private_key_secret`` (the NAME of the secret holding the App key, default
-``STAGR_APP_PRIVATE_KEY``). Prerequisite for the neutral-pipeline CLI commands (#201/#202/#203).
+default) and ``app_slug``; the NAME of the secret holding the App key is ``secrets.app_private_key``
+(default ``STAGR_APP_PRIVATE_KEY``). Prerequisite for the neutral-pipeline CLI commands.
 """
 from __future__ import annotations
 
@@ -32,13 +32,16 @@ _INVALID_SECRET_NAMES = [
 ]
 
 
-def _config_with_publisher(publisher: Any) -> dict[str, Any]:
-    return {
+def _config_with_publisher(publisher: Any, app_private_key: Any = None) -> dict[str, Any]:
+    config: dict[str, Any] = {
         "version": 2,
         "profile": "standard",
         "platform": {"type": "github", "publisher": publisher},
         "defaults": {"provider": "anthropic", "models": {"anthropic": {"default": "c"}}},
     }
+    if app_private_key is not None:
+        config["secrets"] = {"app_private_key": app_private_key}
+    return config
 
 
 def _config_without_publisher() -> dict[str, Any]:
@@ -76,15 +79,14 @@ def test_publisher_schema_accepts_valid_blocks() -> None:
         {"app_id": 99001},
         {"app_id": "99001"},
         {"app_id": 1},
-        {"app_id": 99001, "private_key_secret": "STAGR_APP_PRIVATE_KEY"},
-        {"app_id": 99001, "private_key_secret": "my_app_key_2"},
-        {"app_id": 99001, "private_key_secret": "_LEADING_UNDERSCORE"},
-        {"private_key_secret": "STAGR_APP_PRIVATE_KEY"},
         {},
     ]
     for publisher in valid_publishers:
         errors = _schema_errors(_config_with_publisher(publisher))
         assert not errors, f"{publisher!r} should validate, got {[e.message for e in errors]}"
+    for secret_name in ("STAGR_APP_PRIVATE_KEY", "my_app_key_2", "_LEADING_UNDERSCORE"):
+        errors = _schema_errors(_config_with_publisher({"app_id": 99001}, secret_name))
+        assert not errors, f"secrets.app_private_key {secret_name!r} should validate"
 
 
 def test_publisher_schema_rejects_invalid_app_id() -> None:
@@ -94,17 +96,19 @@ def test_publisher_schema_rejects_invalid_app_id() -> None:
         assert errors, f"app_id {invalid_app_id!r} must be rejected by the schema"
 
 
-def test_publisher_schema_rejects_invalid_private_key_secret() -> None:
+def test_publisher_schema_rejects_invalid_app_private_key() -> None:
     """Names with hyphens/spaces, key-looking values, reserved prefix, empty, and non-strings are rejected."""
     for invalid_name in _INVALID_SECRET_NAMES:
-        errors = _schema_errors(_config_with_publisher({"app_id": 1, "private_key_secret": invalid_name}))
-        assert errors, f"private_key_secret {invalid_name!r} must be rejected by the schema"
+        if invalid_name is None:
+            continue  # no `secrets` entry: the default applies
+        errors = _schema_errors(_config_with_publisher({"app_id": 1}, invalid_name))
+        assert errors, f"secrets.app_private_key {invalid_name!r} must be rejected by the schema"
 
 
 def test_publisher_schema_rejects_unknown_keys() -> None:
     """additionalProperties is false: unknown keys in platform.publisher are rejected."""
-    errors = _schema_errors(_config_with_publisher({"app_id": 1, "private_key": "abc"}))
-    assert errors, "unknown key 'private_key' must be rejected"
+    errors = _schema_errors(_config_with_publisher({"app_id": 1, "private_key_secret": "abc"}))
+    assert errors, "the secret name belongs in `secrets`, so 'private_key_secret' must be rejected"
     errors = _schema_errors(_config_with_publisher({"app_id": 1, "installation_id": 5}))
     assert errors, "unknown key 'installation_id' must be rejected"
 
@@ -115,10 +119,10 @@ def test_publisher_schema_absent_block_stays_valid() -> None:
 
 
 def test_publisher_schema_documents_default_secret_name() -> None:
-    """The schema advertises STAGR_APP_PRIVATE_KEY as the private_key_secret default."""
+    """The schema advertises STAGR_APP_PRIVATE_KEY as the secrets.app_private_key default."""
     schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
     publisher_schema = schema["properties"]["platform"]["properties"]["publisher"]
-    assert publisher_schema["properties"]["private_key_secret"]["default"] == "STAGR_APP_PRIVATE_KEY"
+    assert schema["properties"]["secrets"]["properties"]["app_private_key"]["default"] == "STAGR_APP_PRIVATE_KEY"
     assert "default" not in publisher_schema["properties"]["app_id"], "app_id has no default"
     assert "required" not in schema["properties"]["platform"], "publisher must stay optional"
 
@@ -139,7 +143,7 @@ def test_derive_publisher_config_normalizes_app_id_to_string() -> None:
 
 
 def test_derive_publisher_config_applies_default_secret_name() -> None:
-    """An omitted private_key_secret derives to STAGR_APP_PRIVATE_KEY."""
+    """An omitted secrets.app_private_key derives to STAGR_APP_PRIVATE_KEY."""
     from stagr.core.publisher import derive_publisher_config
 
     derived = derive_publisher_config(_config_with_publisher({"app_id": 99001}))
@@ -147,12 +151,10 @@ def test_derive_publisher_config_applies_default_secret_name() -> None:
 
 
 def test_derive_publisher_config_keeps_explicit_secret_name() -> None:
-    """An explicit private_key_secret is preserved."""
+    """An explicit secrets.app_private_key is preserved."""
     from stagr.core.publisher import derive_publisher_config
 
-    derived = derive_publisher_config(
-        _config_with_publisher({"app_id": "42", "private_key_secret": "ORG_STAGR_KEY"})
-    )
+    derived = derive_publisher_config(_config_with_publisher({"app_id": "42"}, "ORG_STAGR_KEY"))
     assert derived.app_id == "42"
     assert derived.private_key_secret == "ORG_STAGR_KEY"
 
@@ -190,7 +192,7 @@ def test_derive_publisher_config_raises_when_block_absent() -> None:
 def test_derive_publisher_config_raises_when_app_id_missing() -> None:
     """A publisher block without app_id raises ConfigError naming platform.publisher.app_id."""
     _assert_derive_raises({}, "platform.publisher.app_id is missing")
-    _assert_derive_raises({"private_key_secret": "STAGR_APP_PRIVATE_KEY"}, "platform.publisher.app_id is missing")
+    _assert_derive_raises({"app_slug": "stagr"}, "platform.publisher.app_id is missing")
 
 
 def test_derive_publisher_config_raises_for_invalid_app_id() -> None:
@@ -204,14 +206,24 @@ def test_derive_publisher_config_raises_for_invalid_app_id() -> None:
 
 def test_derive_publisher_config_raises_for_invalid_secret_name() -> None:
     """Values that are not a GitHub secret NAME are rejected, and the message never echoes the value."""
+    from stagr.core.models import ConfigError as InvalidConfigError
+    from stagr.core.publisher import derive_publisher_config as derive
+
     for invalid_name in [*_INVALID_SECRET_NAMES, "STAGR_KEY\n"]:
-        _assert_derive_raises({"app_id": 1, "private_key_secret": invalid_name}, "private_key_secret")
+        if not invalid_name:
+            continue  # an empty or absent name means "use the default"
+        try:
+            derive(_config_with_publisher({"app_id": 1}, invalid_name))
+        except InvalidConfigError as error:
+            assert "secrets.app_private_key" in str(error), str(error)
+        else:
+            raise AssertionError(f"expected ConfigError for secret name {invalid_name!r}")
     key_like_value = "-----BEGIN RSA PRIVATE KEY-----"
     from stagr.core.models import ConfigError
     from stagr.core.publisher import derive_publisher_config
 
     try:
-        derive_publisher_config(_config_with_publisher({"app_id": 1, "private_key_secret": key_like_value}))
+        derive_publisher_config(_config_with_publisher({"app_id": 1}, key_like_value))
     except ConfigError as error:
         assert key_like_value not in str(error), "error must not echo a credential-looking value"
 
@@ -254,14 +266,17 @@ def test_publisher_front_door_rejects_what_schema_misses() -> None:
     from stagr.core.config_validation import validate_config
     from stagr.core.models import ConfigError
 
-    for publisher in ({"app_id": 1, "private_key_secret": "STAGR_KEY\n"}, {"app_id": "1\n"}):
-        assert not _schema_errors(_config_with_publisher(publisher)), "documents the schema gap"
+    for config, field in (
+        (_config_with_publisher({"app_id": 1}, "STAGR_KEY\n"), "secrets.app_private_key"),
+        (_config_with_publisher({"app_id": "1\n"}), "platform.publisher"),
+    ):
+        assert not _schema_errors(config), "documents the schema gap"
         try:
-            validate_config(_config_with_publisher(publisher))
+            validate_config(config)
         except ConfigError as error:
-            assert "platform.publisher" in str(error), str(error)
+            assert field in str(error), str(error)
         else:
-            raise AssertionError(f"expected ConfigError for {publisher!r}")
+            raise AssertionError(f"expected ConfigError naming {field}")
 
 
 def test_publisher_front_door_reports_schema_violation() -> None:
@@ -270,9 +285,9 @@ def test_publisher_front_door_reports_schema_violation() -> None:
     from stagr.core.errors import ConfigSchemaError
 
     try:
-        validate_config(_config_with_publisher({"app_id": 1, "private_key_secret": "-----BEGIN KEY-----"}))
+        validate_config(_config_with_publisher({"app_id": 1}, "-----BEGIN KEY-----"))
     except ConfigSchemaError as error:
-        assert "platform/publisher/private_key_secret" in str(error), str(error)
+        assert "secrets/app_private_key" in str(error), str(error)
         return
     raise AssertionError("expected ConfigSchemaError")
 
@@ -293,7 +308,7 @@ def test_publisher_shipped_config_still_validates() -> None:
 PUBLISHER_CONFIG_TESTS = [
     test_publisher_schema_accepts_valid_blocks,
     test_publisher_schema_rejects_invalid_app_id,
-    test_publisher_schema_rejects_invalid_private_key_secret,
+    test_publisher_schema_rejects_invalid_app_private_key,
     test_publisher_schema_rejects_unknown_keys,
     test_publisher_schema_absent_block_stays_valid,
     test_publisher_schema_documents_default_secret_name,

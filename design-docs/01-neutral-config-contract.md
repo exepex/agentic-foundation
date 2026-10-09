@@ -28,8 +28,9 @@ The config does **not** contain:
 - Provider API endpoints
 - Secret **values** — the actual credential material is never in the config. Secret
   **names/aliases** (references that tell the renderer which secret to look up) are
-  allowed; for example `auth.token_secret: REMEDIATION_TOKEN` names the platform secret
-  without revealing its value. See `03-provider-backend-model.md` for the alias model.
+  allowed, all in the top-level `secrets` block; for example `secrets.platform_token:
+  REMEDIATION_TOKEN` names the platform secret without revealing its value. See
+  `03-provider-backend-model.md` for the alias model.
 - CI event names (`pull_request_target`, `issue_comment`, etc.)
 - Comment formats or platform-specific selectors
 - Any implementation detail that is specific to one platform or one provider version
@@ -57,8 +58,11 @@ platform:
     - collaborator
   labels:
     human_merge: human-merge  # label that forces the human-gated lane
-  auth:
-    token_secret: REMEDIATION_TOKEN  # platform secret name for the trusted-user token
+
+# Secret NAMES (never values), one place for all of them (optional; defaults shown in
+# docs/CONFIGURATION.md, `secrets`).
+secrets:
+  platform_token: REMEDIATION_TOKEN  # the trusted-user token
 
 # Pipeline-level defaults for provider and model (optional).
 # Provides fallback values for stages that do not declare provider or model explicitly.
@@ -159,8 +163,8 @@ the model of `02-canonical-stage-model.md`. This table is the only place the two
 ### The schema is the key list
 
 `stagr/config.schema.json` lists exactly the keys the neutral pipeline reads, and nothing
-else. The top-level keys are `version`, `profile`, `platform`, `defaults`, `providers`,
-`stages`, `routing` and `merge`. An external check such as SonarCloud is an observed stage
+else. The top-level keys are `version`, `profile`, `platform`, `secrets`, `defaults`,
+`stages`, `routing`, `remediation` and `merge`. An external check such as SonarCloud is an observed stage
 (`09-check-stages.md`), not a separate key.
 
 Unknown keys inside a Stagr key are validation errors. The "silently ignored" rule applies
@@ -183,8 +187,9 @@ deploy:
   target: staging
 ```
 
-Stagr validates only the keys it defines (`version`, `profile`, `platform`, `defaults`,
-`providers`, `stages`, `routing`, `merge`, and, once `09-check-stages.md` is built, `build`).
+Stagr validates only the keys it defines (`version`, `profile`, `platform`, `secrets`,
+`defaults`, `stages`, `routing`, `remediation`, `merge`, and, once `09-check-stages.md` is built,
+`build`).
 Any unrecognized top-level key is silently ignored by `stagr plan` and `stagr apply`. This lets operators co-locate other
 tooling configuration in `.agentic/config.yml` without breaking Stagr validation.
 

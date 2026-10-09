@@ -4,6 +4,16 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
+## 0.7.0 — 2026-10-09
+
+Every secret name in one place: a top-level `secrets` block.
+
+### Changed config ([docs/CONFIGURATION.md](docs/CONFIGURATION.md), `secrets`)
+
+- New `secrets` block: `app_private_key`, `platform_token`, `openai_api_key`, `anthropic_api_key`.
+- Removed: `platform.publisher.private_key_secret`, `platform.auth`, `providers` and
+  `remediation.api_key_secret`. Move any renamed secret into `secrets`.
+
 ## 0.6.1 — 2026-10-09
 
 The `stagr init` template shows each stage's backend and the `codex-api` key's secret name.

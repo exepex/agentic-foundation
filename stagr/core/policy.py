@@ -26,6 +26,7 @@ from .models import (
     StaticValidationError,
     TrustPolicy,
 )
+from .secret_names import resolve_secret_name
 
 _DEFAULT_HUMAN_MERGE_LABEL = "human-merge"
 _DEFAULT_TRUSTED_ROLES: tuple[AuthorRole, ...] = (
@@ -226,13 +227,13 @@ def _derive_discussion_policy(config: dict[str, Any]) -> DiscussionPolicy | None
 
 
 _DEFAULT_REMEDIATION_MAX_ROUNDS = 5
-_DEFAULT_REMEDIATION_API_KEY_SECRET = "ANTHROPIC_API_KEY"
 
 
 def derive_remediation_policy(config: dict[str, Any]) -> RemediationPolicy | None:
     """Return the ``remediation`` policy, or None when the config has no ``remediation`` section.
 
-    The schema has already checked the shape (provider, round range, secret name).
+    The schema has already checked the shape (provider, round range); the key's secret name is
+    ``secrets.anthropic_api_key``.
     """
     remediation_config: dict[str, Any] | None = config.get("remediation")
     if not remediation_config:
@@ -240,5 +241,5 @@ def derive_remediation_policy(config: dict[str, Any]) -> RemediationPolicy | Non
     return RemediationPolicy(
         provider=str(remediation_config["provider"]),
         max_rounds=int(remediation_config.get("max_rounds", _DEFAULT_REMEDIATION_MAX_ROUNDS)),
-        api_key_secret=str(remediation_config.get("api_key_secret", _DEFAULT_REMEDIATION_API_KEY_SECRET)),
+        api_key_secret=resolve_secret_name(config, "anthropic_api_key"),
     )

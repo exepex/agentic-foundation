@@ -15,72 +15,31 @@ import dataclasses
 from typing import TYPE_CHECKING
 
 from .backend_renderer_registry import BackendRendererRegistry
-from .models import ExecutionPlan, NormalizedStage, RenderContext, SecretRef, StageRender
+from .models import ExecutionPlan, NormalizedStage, RenderContext, StageRender
+from .secret_names import resolve_secret_alias, resolve_secret_name
 
 if TYPE_CHECKING:
     from .platform_renderer import PlatformRenderer
 
 
-_TRUSTED_COMMENTER_TOKEN_ALIAS = "TRUSTED_COMMENTER_TOKEN"
-
-# Default CI secret name when platform.auth.token_secret is absent from config.
-_DEFAULT_TRUSTED_COMMENTER_SECRET = "REMEDIATION_TOKEN"
-
-
 def resolve_platform_token_secret(provider_config: dict) -> str:
-    """Return the secret name of the platform token: ``platform.auth.token_secret`` or the default."""
-    platform_token_secret: str | None = (
-        provider_config.get("platform", {}).get("auth", {}).get("token_secret")
-    )
-    return platform_token_secret or _DEFAULT_TRUSTED_COMMENTER_SECRET
+    """Return the secret name of the platform token: ``secrets.platform_token`` or its default."""
+    return resolve_secret_name(provider_config, "platform_token")
 
 
-def _resolve_secret_aliases(
-    plan: ExecutionPlan,
-    provider_name: str,
-    provider_config: dict,
-) -> ExecutionPlan:
+def _resolve_secret_aliases(plan: ExecutionPlan, provider_config: dict) -> ExecutionPlan:
     """Return a new ExecutionPlan with every SecretRef.env_name filled in.
 
-    Resolution precedence for each SecretRef.alias (design-doc 03, V-S12):
-
-    1. Explicit mapping: ``provider_config["providers"][provider_name]["secrets"][alias]``
-    2. ``TRUSTED_COMMENTER_TOKEN``: resolved to ``platform.auth.token_secret`` when set,
-       falling back to ``REMEDIATION_TOKEN``.
-    3. Convention: alias is itself the platform secret name (env_name = alias).
-       The ``secrets`` block is optional in V1; when omitted, aliases ARE the
-       platform secret names.
-
-    The original plan is not mutated; a new frozen ExecutionPlan is returned
-    via ``dataclasses.replace``.
+    Each alias resolves through the config's ``secrets`` block (``secret_names``): the setting
+    that names it, else that setting's default; an alias with no setting is its own secret name.
+    The original plan is not mutated; a new frozen ExecutionPlan is returned.
     """
-    provider_entry: dict = (
-        provider_config
-        .get("providers", {})
-        .get(provider_name, {})
-    )
-    provider_secrets: dict[str, str] = provider_entry.get("secrets", {})
-
-    resolved_secret_refs: list[SecretRef] = []
-    for secret_ref in plan.required_secrets:
-        # 1. Explicit alias → env_name mapping in the provider secrets block.
-        env_name: str | None = provider_secrets.get(secret_ref.alias)
-
-        # 2. Semantic mapping: TRUSTED_COMMENTER_TOKEN → platform.auth.token_secret or default.
-        if env_name is None and secret_ref.alias == _TRUSTED_COMMENTER_TOKEN_ALIAS:
-            env_name = resolve_platform_token_secret(provider_config)
-
-        # 3. Convention fallback: alias is the platform secret name.
-        if env_name is None:
-            env_name = secret_ref.alias
-
-        resolved_secret_refs.append(
-            dataclasses.replace(secret_ref, env_name=env_name)
-        )
-
     return dataclasses.replace(
         plan,
-        required_secrets=tuple(resolved_secret_refs),
+        required_secrets=tuple(
+            dataclasses.replace(secret_ref, env_name=resolve_secret_alias(provider_config, secret_ref.alias))
+            for secret_ref in plan.required_secrets
+        ),
     )
 
 
@@ -99,9 +58,8 @@ def run_phase1(
        ``BackendRendererNotFoundError`` when none is found.
     2. Call ``backend_renderer.render(stage)`` to get an ``ExecutionPlan``
        with alias-only ``SecretRef`` values (``env_name`` not yet set).
-    3. Resolve each ``SecretRef.alias`` via the three-level precedence in
-       ``_resolve_secret_aliases`` (explicit mapping → ``platform.auth.token_secret``
-       → convention), before the PlatformRenderer is called.
+    3. Resolve each ``SecretRef.alias`` through the config's ``secrets`` block
+       (``_resolve_secret_aliases``) before the PlatformRenderer is called.
     4. Call ``platform_renderer.render_stage(resolved_plan, stage, context)``
        to get a ``StageRender`` (the stage artifact and its ``StageResultSpec``).
     5. Collect and return all ``StageRender`` objects.
@@ -127,9 +85,7 @@ def run_phase1(
                 f"stage it received."
             )
 
-        resolved_plan: ExecutionPlan = _resolve_secret_aliases(
-            unresolved_plan, stage.provider, provider_config
-        )
+        resolved_plan: ExecutionPlan = _resolve_secret_aliases(unresolved_plan, provider_config)
         prepared.append((resolved_plan, stage))
 
     # Rendering pass: only reached when all stages have a validated, fully-resolved plan.

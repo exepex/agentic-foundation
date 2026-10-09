@@ -1,6 +1,6 @@
 """Tests for Phase 1 secret alias built-in default resolution (issue #193).
 
-Covers: TRUSTED_COMMENTER_TOKEN falling back to REMEDIATION_TOKEN; platform.auth.token_secret
+Covers: TRUSTED_COMMENTER_TOKEN falling back to REMEDIATION_TOKEN; secrets.platform_token
 overriding that default.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ from neutral_core_tests.phase1_render_loop_tests.helpers import (
 
 
 def test_phase1_trusted_commenter_token_resolves_to_remediation_token_when_platform_absent() -> None:
-    """TRUSTED_COMMENTER_TOKEN resolves to REMEDIATION_TOKEN when no platform.auth config."""
+    """TRUSTED_COMMENTER_TOKEN resolves to REMEDIATION_TOKEN when no secrets.platform_token."""
     from stagr.core.render_loop import run_phase1
     from stagr.core.backend_renderer_registry import BackendRendererRegistry
 
@@ -43,7 +43,7 @@ def test_phase1_trusted_commenter_token_resolves_to_remediation_token_when_platf
             received_plans.append(plan)
             return build_stage_render(stage_arg.id)
 
-    provider_config: dict = {}  # no platform.auth — default must apply
+    provider_config: dict = {}  # no secrets — default must apply
 
     run_phase1(render_context, registry, _CapturingPlatformRenderer(), provider_config)
 
@@ -55,8 +55,8 @@ def test_phase1_trusted_commenter_token_resolves_to_remediation_token_when_platf
     )
 
 
-def test_phase1_platform_auth_token_secret_overrides_trusted_commenter_default() -> None:
-    """platform.auth.token_secret overrides the REMEDIATION_TOKEN default for TRUSTED_COMMENTER_TOKEN."""
+def test_phase1_platform_token_setting_overrides_trusted_commenter_default() -> None:
+    """secrets.platform_token overrides the REMEDIATION_TOKEN default for TRUSTED_COMMENTER_TOKEN."""
     from stagr.core.render_loop import run_phase1
     from stagr.core.backend_renderer_registry import BackendRendererRegistry
 
@@ -84,13 +84,7 @@ def test_phase1_platform_auth_token_secret_overrides_trusted_commenter_default()
             received_plans.append(plan)
             return build_stage_render(stage_arg.id)
 
-    provider_config = {
-        "platform": {
-            "auth": {
-                "token_secret": "MY_CUSTOM_PAT",
-            },
-        },
-    }
+    provider_config = {"secrets": {"platform_token": "MY_CUSTOM_PAT"}}
 
     run_phase1(render_context, registry, _CapturingPlatformRenderer(), provider_config)
 
@@ -98,5 +92,5 @@ def test_phase1_platform_auth_token_secret_overrides_trusted_commenter_default()
     resolved_plan = received_plans[0]
     env_names = {ref.alias: ref.env_name for ref in resolved_plan.required_secrets}
     assert env_names == {"TRUSTED_COMMENTER_TOKEN": "MY_CUSTOM_PAT"}, (
-        f"platform.auth.token_secret must override REMEDIATION_TOKEN default; got {env_names!r}"
+        f"secrets.platform_token must override REMEDIATION_TOKEN default; got {env_names!r}"
     )

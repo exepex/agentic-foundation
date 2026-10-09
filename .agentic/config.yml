@@ -12,18 +12,15 @@ platform:
   trusted_roles: [owner, member, collaborator]
   labels:
     human_merge: human-merge          # foundation gate hard-stop
-  # Publication/remediation uses a real-user PAT; reads use the workflow GITHUB_TOKEN.
-  auth: { token_secret: REMEDIATION_TOKEN }
   # The Stagr GitHub App that publishes the check runs the generated workflows emit. The ID is not
-  # a secret; the private key lives in the repository secret named below (default shown).
-  publisher: { app_id: 5125793, private_key_secret: STAGR_APP_PRIVATE_KEY }
+  # a secret.
+  publisher: { app_id: 5125793 }
 
-providers:
-  # Secret alias map: each key is an alias a backend asks for; each value is the NAME of the CI
-  # secret that holds it (never the value). See docs/CONFIGURATION.md, "Secret alias resolution".
-  openai:
-    secrets:
-      TRUSTED_COMMENTER_TOKEN: REMEDIATION_TOKEN
+# The NAME of the repository secret holding each credential (never the value); the defaults are
+# shown. See docs/CONFIGURATION.md, `secrets`.
+secrets:
+  app_private_key: STAGR_APP_PRIVATE_KEY
+  platform_token: REMEDIATION_TOKEN
 
 stages:
   # The security review waits for the code review, as in the `standard` profile: running the two

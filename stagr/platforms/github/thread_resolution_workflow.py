@@ -14,7 +14,7 @@ Security invariants:
 - ``pull_request_target`` runs the default-branch workflow; nothing from the pull request is checked
   out or executed, and the job performs only GitHub API calls.
 - Only same-repository pull requests from a trusted author association reach the token.
-- The resolving token is the platform token secret (``platform.auth.token_secret``, default
+- The resolving token is the platform token secret (``secrets.platform_token``, default
   ``REMEDIATION_TOKEN``), referenced by name; the workflow token gets no permissions.
 - A stale event (the head moved since it fired) resolves nothing; the newer commit's run does.
 """

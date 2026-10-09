@@ -1,4 +1,4 @@
-"""Schema errors must never echo a value pasted into a ``*_secret`` field (review finding on #237).
+"""Schema errors must never echo a value pasted into the ``secrets`` block (review finding on #237).
 
 jsonschema quotes the rejected instance in its messages. An operator who pastes a private key where a
 secret NAME belongs must not see the key in CLI or CI logs.
@@ -34,21 +34,22 @@ def _assert_no_key_material(error_text: str, field_path: str) -> None:
     assert field_path in error_text and "value withheld" in error_text, error_text
 
 
-def test_pasted_private_key_in_publisher_secret_is_not_echoed() -> None:
-    config = _config_with_publisher({"app_id": 1, "private_key_secret": PEM_KEY})
-    _assert_no_key_material(_validation_error_text(config), "private_key_secret")
+def test_pasted_private_key_in_app_private_key_is_not_echoed() -> None:
+    config = _config_with_publisher({"app_id": 1}, PEM_KEY)
+    _assert_no_key_material(_validation_error_text(config), "app_private_key")
 
 
-def test_pasted_key_in_the_existing_token_secret_field_is_not_echoed() -> None:
-    config = copy.deepcopy(_config_with_publisher({"app_id": 1}))
-    config["platform"]["auth"] = {"token_secret": PEM_KEY}
-    _assert_no_key_material(_validation_error_text(config), "token_secret")
+def test_pasted_key_in_any_secrets_entry_is_not_echoed() -> None:
+    for setting in ("platform_token", "openai_api_key", "anthropic_api_key"):
+        config = copy.deepcopy(_config_with_publisher({"app_id": 1}))
+        config["secrets"] = {setting: PEM_KEY}
+        _assert_no_key_material(_validation_error_text(config), setting)
 
 
 def test_non_string_secret_value_is_reported_without_its_content() -> None:
-    config = _config_with_publisher({"app_id": 1, "private_key_secret": ["a-secret-in-a-list"]})
+    config = _config_with_publisher({"app_id": 1}, ["a-secret-in-a-list"])
     text = _validation_error_text(config)
-    assert "a-secret-in-a-list" not in text and "private_key_secret" in text
+    assert "a-secret-in-a-list" not in text and "app_private_key" in text
 
 
 def test_errors_for_non_secret_fields_keep_their_full_message() -> None:
@@ -61,14 +62,15 @@ def test_describe_schema_error_only_redacts_secret_named_fields() -> None:
         def __init__(self, path: list[Any], message: str) -> None:
             self.path, self.message = path, message
 
-    assert "withheld" in describe_schema_error(FakeError(["x", "token_secret"], "'v' bad"))
+    assert "withheld" in describe_schema_error(FakeError(["secrets", "platform_token"], "'v' bad"))
     assert describe_schema_error(FakeError(["x", "branch"], "'v' bad")) == "'v' bad"
     assert describe_schema_error(FakeError([], "root bad")) == "root bad"
+    assert describe_schema_error(FakeError(["secrets"], "'x' was unexpected")) == "'x' was unexpected"
 
 
 SECRET_VALUE_REDACTION_TESTS = [
-    test_pasted_private_key_in_publisher_secret_is_not_echoed,
-    test_pasted_key_in_the_existing_token_secret_field_is_not_echoed,
+    test_pasted_private_key_in_app_private_key_is_not_echoed,
+    test_pasted_key_in_any_secrets_entry_is_not_echoed,
     test_non_string_secret_value_is_reported_without_its_content,
     test_errors_for_non_secret_fields_keep_their_full_message,
     test_describe_schema_error_only_redacts_secret_named_fields,

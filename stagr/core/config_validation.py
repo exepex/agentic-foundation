@@ -34,12 +34,13 @@ def describe_schema_error(error: Any) -> str:
     """Return a schema error's text, WITHOUT the rejected value when it sits in a secret-name field.
 
     jsonschema messages quote the offending instance ("'<value>' does not match ..."). A field that
-    holds a secret NAME (a ``*_secret`` key, or a value inside a ``secrets`` map) is exactly where an
+    holds a secret NAME (any value inside the ``secrets`` block) is exactly where an
     operator may paste the secret VALUE by mistake (for example a private key), and that value must
     never reach CLI or CI logs.
     """
     path_parts = [str(part) for part in error.path]
-    if path_parts and (path_parts[-1].endswith("_secret") or "secrets" in path_parts):
+    # A value under the `secrets` block, not an error about the block itself (an unknown key).
+    if "secrets" in path_parts[:-1]:
         return "is not a valid secret NAME (value withheld; store the value as a CI secret and put only its name here)"
     return error.message
 
