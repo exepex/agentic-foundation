@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from .platform_renderer import PlatformRenderer
 
 
-TRUSTED_COMMENTER_TOKEN_ALIAS = "TRUSTED_COMMENTER_TOKEN"
+_TRUSTED_COMMENTER_TOKEN_ALIAS = "TRUSTED_COMMENTER_TOKEN"
 
 # Default CI secret name when platform.auth.token_secret is absent from config.
 _DEFAULT_TRUSTED_COMMENTER_SECRET = "REMEDIATION_TOKEN"
@@ -67,7 +67,7 @@ def _resolve_secret_aliases(
         env_name: str | None = provider_secrets.get(secret_ref.alias)
 
         # 2. Semantic mapping: TRUSTED_COMMENTER_TOKEN → platform.auth.token_secret or default.
-        if env_name is None and secret_ref.alias == TRUSTED_COMMENTER_TOKEN_ALIAS:
+        if env_name is None and secret_ref.alias == _TRUSTED_COMMENTER_TOKEN_ALIAS:
             env_name = resolve_platform_token_secret(provider_config)
 
         # 3. Convention fallback: alias is the platform secret name.
