@@ -63,7 +63,7 @@ Four sub-checks, reported as separate lines:
 | Sub-check | Local | Pipeline | Central |
 |---|---|---|---|
 | **a. App ID configured** | PASS (plan/apply already require it) | same | same |
-| **b. Private-key secret present** (`platform.publisher.private_key_secret`) | `SKIP` | presence flag; ERROR names the secret | secrets API listing |
+| **b. Private-key secret present** (`secrets.app_private_key`) | `SKIP` | presence flag; ERROR names the secret | secrets API listing |
 | **c. App installed** | `SKIP` | `GET /repos/{r}/installation` with an App JWT (F3); `404` is an ERROR naming the App ID | `not verified` (needs the App key) |
 | **d. Permissions sufficient** | `SKIP` | compare `installation.permissions` to the required union; ERROR lists each missing or too-weak permission | `not verified` |
 

@@ -167,6 +167,23 @@ def test_pasted_key_in_a_secrets_map_is_not_echoed() -> None:
     raise AssertionError("expected the pasted key to be rejected")
 
 
+def test_secret_defaults_match_in_schema_and_docs() -> None:
+    """The schema's and CONFIGURATION.md's secret defaults are the ones the code uses."""
+    import json
+
+    from stagr.core.secret_names import DEFAULT_SECRET_NAMES
+
+    schema = json.loads((REPO_ROOT / "stagr" / "config.schema.json").read_text(encoding="utf-8"))
+    schema_defaults = {
+        setting: definition["default"]
+        for setting, definition in schema["properties"]["secrets"]["properties"].items()
+    }
+    assert schema_defaults == DEFAULT_SECRET_NAMES, schema_defaults
+    docs_text = (REPO_ROOT / "docs" / "CONFIGURATION.md").read_text(encoding="utf-8")
+    for setting, default_name in DEFAULT_SECRET_NAMES.items():
+        assert f"| `{setting}` | `{default_name}` |" in docs_text, f"docs table is missing {setting}"
+
+
 def test_provider_without_default_backend_needs_an_explicit_backend() -> None:
     from stagr.core.models import ConfigError
     from stagr.core.pipeline import normalize_config
@@ -238,6 +255,7 @@ CONFIG_SCHEMA_TESTS = [
     test_schema_requires_a_stage_type,
     test_secret_name_fields_reject_anything_that_is_not_a_name,
     test_pasted_key_in_a_secrets_map_is_not_echoed,
+    test_secret_defaults_match_in_schema_and_docs,
     test_provider_without_default_backend_needs_an_explicit_backend,
     test_omitted_profile_means_the_standard_profile,
     test_front_door_reports_a_missing_skill_file,

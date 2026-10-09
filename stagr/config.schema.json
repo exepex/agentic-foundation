@@ -75,10 +75,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "app_private_key": { "$ref": "#/$defs/secretName", "default": "STAGR_APP_PRIVATE_KEY", "description": "The Stagr GitHub App's private key. Default: STAGR_APP_PRIVATE_KEY." },
-        "platform_token": { "$ref": "#/$defs/secretName", "default": "REMEDIATION_TOKEN", "description": "A real user's token, used to post review requests and resolve review threads. Default: REMEDIATION_TOKEN." },
-        "openai_api_key": { "$ref": "#/$defs/secretName", "default": "OPENAI_API_KEY", "description": "The OpenAI API key of the `codex-api` backend. Default: OPENAI_API_KEY." },
-        "anthropic_api_key": { "$ref": "#/$defs/secretName", "default": "ANTHROPIC_API_KEY", "description": "The Anthropic API key of the `remediation` agent. Default: ANTHROPIC_API_KEY." }
+        "app_private_key": { "$ref": "#/$defs/secretName", "default": "STAGR_APP_PRIVATE_KEY", "description": "The Stagr GitHub App's private key." },
+        "platform_token": { "$ref": "#/$defs/secretName", "default": "REMEDIATION_TOKEN", "description": "A real user's token, used to post review requests and resolve review threads." },
+        "openai_api_key": { "$ref": "#/$defs/secretName", "default": "OPENAI_API_KEY", "description": "The OpenAI API key of the `codex-api` backend." },
+        "anthropic_api_key": { "$ref": "#/$defs/secretName", "default": "ANTHROPIC_API_KEY", "description": "The Anthropic API key of the `remediation` agent." }
       }
     },
 

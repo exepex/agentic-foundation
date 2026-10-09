@@ -18,22 +18,21 @@ The toolkit never creates credentials.
 
 ## 2. Credentials — names, type, and scope
 
-Set these as **repository (or environment) secrets** unless noted otherwise. The names are the
-defaults; to use another name, set it in [`secrets`](#secrets-optional--secret-names) under the
-setting shown.
+Set these as **repository (or environment) secrets** unless noted otherwise. Each one's name, and
+how to change it, is set in [`secrets`](#secrets-optional--secret-names) under the setting shown.
 
-| Purpose | Default name (`secrets` setting) | Type | Required when | Scope / notes |
+| Purpose | `secrets` setting | Type | Required when | Scope / notes |
 |---|---|---|---|---|
-| Codex comment-trigger, PR publication, resolving outdated review threads | `REMEDIATION_TOKEN` (`platform_token`) | **Fine-grained PAT (real user)** | a stage uses the `codex` backend, or any review stage (finished review threads are resolved with it) | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
-| Codex API key | `OPENAI_API_KEY` (`openai_api_key`) | OpenAI API key | a stage uses the `codex-api` backend | Only the job that runs Codex receives it. Billed per use to the key's OpenAI project; set a spending limit there. |
-| Remediation agent API key | `ANTHROPIC_API_KEY` (`anthropic_api_key`) | Anthropic API key | the config has a [`remediation`](#remediation-optional--automated-fixes) section | Also install the **Claude GitHub App** on the repository: the agent pushes its fixes as that App, which starts the next review. |
-| Stagr GitHub App private key | `STAGR_APP_PRIVATE_KEY` (`app_private_key`) | GitHub App private key | you configure `platform.publisher` | See [Publisher](#publisher-stagr-github-app). |
-| GitHub API (PR reads) | `GITHUB_TOKEN` (not configurable) | Provided by Actions | always | No action needed; each generated workflow sets its own least-privilege permissions. |
+| Codex comment-trigger, PR publication, resolving outdated review threads | `platform_token` | **Fine-grained PAT (real user)** | a stage uses the `codex` backend, or any review stage (finished review threads are resolved with it) | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
+| Codex API key | `openai_api_key` | OpenAI API key | a stage uses the `codex-api` backend | Only the job that runs Codex receives it. Billed per use to the key's OpenAI project; set a spending limit there. |
+| Remediation agent API key | `anthropic_api_key` | Anthropic API key | the config has a [`remediation`](#remediation-optional--automated-fixes) section | Also install the **Claude GitHub App** on the repository: the agent pushes its fixes as that App, which starts the next review. |
+| Stagr GitHub App private key | `app_private_key` | GitHub App private key | you configure `platform.publisher` | See [Publisher](#publisher-stagr-github-app). |
+| GitHub API (PR reads) | none (`GITHUB_TOKEN`) | Provided by Actions | always | No action needed; each generated workflow sets its own least-privilege permissions. |
 
 The `codex` backend needs no model API key: the Codex GitHub App supplies its own model.
 
 **Why a real-user PAT:**
-- **`REMEDIATION_TOKEN`** must be a **real-user PAT** because Codex acts on `@codex` commands
+- The **`platform_token`** secret must be a **real-user PAT** because Codex acts on `@codex` commands
   only from an attributable user. Grant it the minimum (Contents + Pull requests, R/W) — it needs no
   permission to merge or administer.
 

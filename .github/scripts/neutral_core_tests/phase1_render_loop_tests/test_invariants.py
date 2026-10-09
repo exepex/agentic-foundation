@@ -23,7 +23,7 @@ def test_phase1_resolved_plan_has_env_name_set() -> None:
     render_context = build_minimal_render_context([stage])
 
     plan_with_alias = build_execution_plan(
-        "stage-resolved", secret_aliases=("ANTHROPIC_API_KEY",)
+        "stage-resolved", secret_aliases=("OPENAI_API_KEY",)
     )
 
     class _BackendRendererWithAlias:
@@ -43,7 +43,7 @@ def test_phase1_resolved_plan_has_env_name_set() -> None:
             received_plans.append(plan)
             return build_stage_render(stage_arg.id)
 
-    provider_config = {"secrets": {"anthropic_api_key": "MY_REAL_API_KEY_ENV_VAR"}}
+    provider_config = {"secrets": {"openai_api_key": "MY_REAL_API_KEY_ENV_VAR"}}
 
     run_phase1(render_context, registry, _CapturingPlatformRenderer(), provider_config)
 
@@ -53,8 +53,8 @@ def test_phase1_resolved_plan_has_env_name_set() -> None:
         f"Expected 1 required secret; got {len(resolved_plan.required_secrets)}"
     )
     resolved_secret = resolved_plan.required_secrets[0]
-    assert resolved_secret.alias == "ANTHROPIC_API_KEY", (
-        f"Expected alias 'ANTHROPIC_API_KEY'; got {resolved_secret.alias!r}"
+    assert resolved_secret.alias == "OPENAI_API_KEY", (
+        f"Expected alias 'OPENAI_API_KEY'; got {resolved_secret.alias!r}"
     )
     assert resolved_secret.env_name == "MY_REAL_API_KEY_ENV_VAR", (
         f"Expected env_name 'MY_REAL_API_KEY_ENV_VAR'; got {resolved_secret.env_name!r}"

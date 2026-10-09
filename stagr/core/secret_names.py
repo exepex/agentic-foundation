@@ -21,7 +21,6 @@ DEFAULT_SECRET_NAMES: dict[str, str] = {
 SECRET_SETTING_BY_ALIAS: dict[str, str] = {
     "TRUSTED_COMMENTER_TOKEN": "platform_token",
     "OPENAI_API_KEY": "openai_api_key",
-    "ANTHROPIC_API_KEY": "anthropic_api_key",
 }
 
 

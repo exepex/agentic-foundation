@@ -35,7 +35,7 @@ Users do not memorize these. The CI snippet doctor prints already contains the p
 | Input | Context | Source | Purpose |
 |---|---|---|---|
 | `STAGR_HAS_<SECRET_NAME>` = `true`/`false` | pipeline | `${{ secrets.NAME != '' }}` | V-E01, V-E02b. Flag only, never the value |
-| `STAGR_DOCTOR_APP_KEY` | pipeline only | `${{ secrets.<private_key_secret> }}` | V-E02c-d JWT (D3). Never read in local or central contexts |
+| `STAGR_DOCTOR_APP_KEY` | pipeline only | `${{ secrets.<app_private_key name> }}` | V-E02c-d JWT (D3). Never read in local or central contexts |
 | `STAGR_PLATFORM_TOKEN` | central (required), pipeline (optional) | secret or operator's shell | Central: secrets, V-E03, V-E04. Pipeline: only V-E03, V-E04 |
 | `GITHUB_REPOSITORY`, `GITHUB_API_URL` | pipeline | provided by Actions | Which repo and GitHub instance. `--repo` replaces the repo in a central run (F9) |
 

@@ -39,8 +39,9 @@ def describe_schema_error(error: Any) -> str:
     never reach CLI or CI logs.
     """
     path_parts = [str(part) for part in error.path]
-    # A value under the `secrets` block, not an error about the block itself (an unknown key).
-    if "secrets" in path_parts[:-1]:
+    # Any value at or under the `secrets` block (a pasted key, or the block itself replaced by one).
+    # An unknown key in the block is reported normally: its message quotes the key, not a value.
+    if "secrets" in path_parts and getattr(error, "validator", None) != "additionalProperties":
         return "is not a valid secret NAME (value withheld; store the value as a CI secret and put only its name here)"
     return error.message
 

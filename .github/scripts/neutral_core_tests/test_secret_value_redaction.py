@@ -52,6 +52,13 @@ def test_non_string_secret_value_is_reported_without_its_content() -> None:
     assert "a-secret-in-a-list" not in text and "app_private_key" in text
 
 
+def test_a_value_pasted_in_place_of_the_secrets_block_is_not_echoed() -> None:
+    for pasted_value in (PEM_KEY, [PEM_KEY]):
+        config = copy.deepcopy(_config_with_publisher({"app_id": 1}))
+        config["secrets"] = pasted_value
+        _assert_no_key_material(_validation_error_text(config), "secrets")
+
+
 def test_errors_for_non_secret_fields_keep_their_full_message() -> None:
     text = _validation_error_text(_config_with_publisher({"app_id": "not-a-number"}))
     assert "app_id" in text and "not-a-number" in text
@@ -59,19 +66,22 @@ def test_errors_for_non_secret_fields_keep_their_full_message() -> None:
 
 def test_describe_schema_error_only_redacts_secret_named_fields() -> None:
     class FakeError:
-        def __init__(self, path: list[Any], message: str) -> None:
-            self.path, self.message = path, message
+        def __init__(self, path: list[Any], message: str, validator: str = "pattern") -> None:
+            self.path, self.message, self.validator = path, message, validator
 
     assert "withheld" in describe_schema_error(FakeError(["secrets", "platform_token"], "'v' bad"))
     assert describe_schema_error(FakeError(["x", "branch"], "'v' bad")) == "'v' bad"
     assert describe_schema_error(FakeError([], "root bad")) == "root bad"
-    assert describe_schema_error(FakeError(["secrets"], "'x' was unexpected")) == "'x' was unexpected"
+    assert "withheld" in describe_schema_error(FakeError(["secrets"], "'v' is not of type 'object'", "type"))
+    unknown_key = FakeError(["secrets"], "'x' was unexpected", "additionalProperties")
+    assert describe_schema_error(unknown_key) == "'x' was unexpected"
 
 
 SECRET_VALUE_REDACTION_TESTS = [
     test_pasted_private_key_in_app_private_key_is_not_echoed,
     test_pasted_key_in_any_secrets_entry_is_not_echoed,
     test_non_string_secret_value_is_reported_without_its_content,
+    test_a_value_pasted_in_place_of_the_secrets_block_is_not_echoed,
     test_errors_for_non_secret_fields_keep_their_full_message,
     test_describe_schema_error_only_redacts_secret_named_fields,
 ]
