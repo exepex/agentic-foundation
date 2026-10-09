@@ -282,7 +282,29 @@ def test_every_hinted_stage_value_passes_plan() -> None:
             check(exit_code == 0, f"template: the hinted stage values {case} pass `stagr plan` ({stderr.strip()})")
 
 
+def test_template_provider_secret_names_match_the_renderers() -> None:
+    """The template's secret-name lines are text; this keeps them equal to what the renderers use."""
+    from stagr.core.backend_names import BACKEND_CODEX, BACKEND_CODEX_API
+    from stagr.core.render_loop import resolve_platform_token_secret
+    from stagr.core.renderers.openai_codex_api_backend_renderer import OPENAI_API_KEY_ALIAS
+    from stagr.core.renderers.openai_codex_backend_renderer import OpenAICodexBackendRenderer
+    from neutral_core_tests.github_platform_renderer_tests.helpers import build_stage
+
+    (platform_token_alias,) = (
+        secret.alias for secret in OpenAICodexBackendRenderer().render(build_stage()).required_secrets
+    )
+    template_text = build_config_template("minimal", PUBLISHER_APP_ID)
+    check(
+        f"#      {platform_token_alias}: {resolve_platform_token_secret({})}  # the `{BACKEND_CODEX}` backend's"
+        in template_text
+        and f"#      {OPENAI_API_KEY_ALIAS}: {OPENAI_API_KEY_ALIAS}  # the `{BACKEND_CODEX_API}` backend's"
+        in template_text,
+        "template: the providers block names the secrets the renderers really use",
+    )
+
+
 CONFIG_TEMPLATE_TESTS = CONFIG_TEMPLATE_TESTS + (
+    test_template_provider_secret_names_match_the_renderers,
     test_template_hints_name_the_allowed_values,
     test_every_hinted_stage_value_passes_plan,
 )
