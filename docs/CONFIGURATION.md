@@ -177,7 +177,7 @@ the same reasoning rules. They differ in how Codex is started and who pays for i
 |---|---|---|
 | How Codex runs | The **Codex GitHub App** reviews when the workflow posts `@codex review` (or `@codex security review`) | The stage workflow runs Codex itself, with [`openai/codex-action`](https://github.com/openai/codex-action) |
 | Billed to | The ChatGPT plan connected to the repository, within its review limits | The OpenAI API key, per use |
-| Needs | The Codex GitHub App ([setup](#4-setup-steps)) and `REMEDIATION_TOKEN` | `OPENAI_API_KEY`, plus the Stagr App settings for this backend: `publisher.app_slug` ([`platform`](#platform)) and the App's permissions ([Publisher](#publisher-stagr-github-app)) |
+| Needs | The Codex GitHub App ([setup](#4-setup-steps)) and the backend's credentials ([section 2](#2-credentials--names-type-and-scope)) | The backend's credentials ([section 2](#2-credentials--names-type-and-scope)), `publisher.app_slug` ([`platform`](#platform)) and the Stagr App's permissions ([Publisher](#publisher-stagr-github-app)) |
 | Findings posted by | The Codex bot | The Stagr App, as one review per commit with a comment on each finding's line |
 
 To switch a profile's stages to `codex-api`, override them by `id`:
@@ -193,8 +193,6 @@ job that holds only the API key and a checkout without credentials. Codex runs w
 read-only sandbox and never sees the Stagr App's token. It does not read the repository's `AGENTS.md`,
 so the change under review cannot instruct its own reviewer; the review rules come from Stagr only. A finding on a file the pull request does not
 change has no changed line to attach to; it is listed in the review's summary and does not block.
-A stage's [model](#3a-model-resolution) is passed to Codex; without one Codex uses its default.
-
 See **Model resolution** below for how a stage's model is chosen.
 
 ### `routing.fast_path`

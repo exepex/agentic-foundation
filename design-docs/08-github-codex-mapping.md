@@ -328,9 +328,8 @@ This is how the generated `stage-<id>.yml` implements the reconciliation model i
   (`platform.publisher.app_slug`), so findings and evidence come from an account no person can
   impersonate. The CI-component code lives in `runtime/ci_component_runtime.py`, embedded only in
   such stages, which runs the shared runtime script as a module rather than copying it.
-- **Stagr App permissions** used at run time: Checks (write), Pull requests (read) and Issues
-  (read); with a `CI_COMPONENT` stage also Pull requests (write) and Issues (write), to post the
-  review and the marker.
+- **Stagr App permissions** used at run time: see `docs/CONFIGURATION.md`, "Publisher" (a
+  `CI_COMPONENT` stage also posts its review and marker as the App).
 
 ---
 

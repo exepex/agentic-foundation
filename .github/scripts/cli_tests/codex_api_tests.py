@@ -61,7 +61,21 @@ def test_codex_api_without_the_app_slug_names_the_missing_setting() -> None:
         )
 
 
+def test_codex_api_key_secret_can_be_renamed() -> None:
+    renamed = build_codex_api_config().replace(
+        "remediation:\n", "providers:\n  openai:\n    secrets:\n      OPENAI_API_KEY: TEAM_OPENAI_KEY\nremediation:\n"
+    )
+    with starter_project(renamed) as project_root:
+        run_cli(["apply", "--root", str(project_root)])
+        workflow_text = (project_root / ".github" / "workflows" / "stage-review.yml").read_text(encoding="utf-8")
+        check(
+            "${{ secrets.TEAM_OPENAI_KEY }}" in workflow_text and "secrets.OPENAI_API_KEY" not in workflow_text,
+            "codex-api: providers.openai.secrets.OPENAI_API_KEY renames the key's secret",
+        )
+
+
 CODEX_API_TESTS = (
     test_codex_api_stages_plan_and_apply,
     test_codex_api_without_the_app_slug_names_the_missing_setting,
+    test_codex_api_key_secret_can_be_renamed,
 )

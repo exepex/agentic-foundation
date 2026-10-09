@@ -38,14 +38,16 @@ def build_stage_hints() -> dict[str, str]:
     backends_by_provider: dict[str, list[str]] = {}
     for renderer in renderers:
         backends_by_provider.setdefault(renderer.provider, []).append(renderer.backend)
-    providers = [
-        _describe_provider(provider, backends) for provider, backends in backends_by_provider.items()
+    backends = [
+        _describe_backends(provider, provider_backends)
+        for provider, provider_backends in backends_by_provider.items()
     ]
     shipped_skills = sorted(path.name for path in SHIPPED_SKILLS_DIRECTORY.iterdir() if path.is_dir())
     return {
         "id": "unique; lowercase letters, digits, - and _",
         "type": f"supported today: {_join(stage_types)}",
-        "provider": f"supported today: {_join(providers)}",
+        "provider": f"supported today: {_join(list(backends_by_provider))}",
+        "backend": f"supported today: {'; '.join(backends)}",
         "skill": f"shipped: {_join(shipped_skills)}, or your own",
         "gate": f"supported today: {_join(gates)}",
         "triggers": f"any of: {_join(stage_properties['triggers']['items']['enum'])}",
@@ -53,15 +55,14 @@ def build_stage_hints() -> dict[str, str]:
     }
 
 
-def _describe_provider(provider: str, backends: list[str]) -> str:
-    """``openai (backend: codex by default, or codex-api)``: the default first, then the others."""
+def _describe_backends(provider: str, backends: list[str]) -> str:
+    """``codex (default) or codex-api``, with ``for openai`` when more than one provider exists."""
     default_backend = DEFAULT_BACKEND_BY_PROVIDER.get(provider)
-    other_backends = [backend for backend in backends if backend != default_backend]
-    if default_backend not in backends:
-        return f"{provider} (backend: {', '.join(backends)})"
-    if not other_backends:
-        return f"{provider} ({default_backend})"
-    return f"{provider} (backend: {default_backend} by default, or {', '.join(other_backends)})"
+    ordered = sorted(backends, key=lambda backend: backend != default_backend)
+    described = " or ".join(
+        f"{backend} (default)" if backend == default_backend else backend for backend in ordered
+    )
+    return described if len(DEFAULT_BACKEND_BY_PROVIDER) == 1 else f"{described} for {provider}"
 
 
 def build_platform_hints() -> dict[str, str]:
