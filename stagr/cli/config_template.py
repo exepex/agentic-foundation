@@ -13,7 +13,10 @@ from typing import Any
 
 import yaml
 
+from stagr.core.backend_names import BACKEND_CODEX, BACKEND_CODEX_API, DEFAULT_BACKEND_BY_PROVIDER
 from stagr.core.normalize import list_built_in_stages
+from stagr.core.render_loop import TRUSTED_COMMENTER_TOKEN_ALIAS, resolve_platform_token_secret
+from stagr.core.renderers.openai_codex_api_backend_renderer import OPENAI_API_KEY_ALIAS
 
 from .config_value_hints import add_hints, build_platform_hints, build_remediation_hints, build_stage_hints
 from .profile_command import build_profile_guide
@@ -101,11 +104,20 @@ def _build_platform_section(app_id: str, setting_prefix: str) -> str:
 def _build_providers_section(setting_prefix: str) -> str:
     return _comment(
         [
-            "Secret names per provider, when a provider must use a different secret than the",
-            "platform token above.",
+            "Secret names per provider: each line maps a credential a backend uses to the name of",
+            "your repository secret. Shown with the default names; change one only when your secret",
+            "is named differently. See `providers`.",
         ]
     ) + _settings(
-        ["providers:", "  openai:", "    secrets:", "      TRUSTED_COMMENTER_TOKEN: REMEDIATION_TOKEN"],
+        [
+            "providers:",
+            "  openai:",
+            "    secrets:",
+            # Built from the aliases and default names the renderers use, so they cannot drift.
+            f"      {TRUSTED_COMMENTER_TOKEN_ALIAS}: {resolve_platform_token_secret({})}"
+            f"  # the `{BACKEND_CODEX}` backend's review requests",
+            f"      {OPENAI_API_KEY_ALIAS}: {OPENAI_API_KEY_ALIAS}  # the `{BACKEND_CODEX_API}` backend's OpenAI API key",
+        ],
         setting_prefix,
     )
 
@@ -130,7 +142,14 @@ def _build_stages_section(setting_prefix: str) -> str:
 
 
 def _render_stage(stage: dict[str, Any]) -> list[str]:
-    rendered = yaml.safe_dump([stage], sort_keys=False, default_flow_style=None).splitlines()
+    """The stage as YAML, with its provider's default backend written out after `provider`, so the
+    catalog shows every stage field and the backend can be switched in place."""
+    shown_stage: dict[str, Any] = {}
+    for key, value in stage.items():
+        shown_stage[key] = value
+        if key == "provider" and "backend" not in stage:
+            shown_stage["backend"] = DEFAULT_BACKEND_BY_PROVIDER[value]
+    rendered = yaml.safe_dump([shown_stage], sort_keys=False, default_flow_style=None).splitlines()
     return [f"  {line}" for line in rendered]
 
 

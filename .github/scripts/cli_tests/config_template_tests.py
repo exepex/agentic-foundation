@@ -239,7 +239,9 @@ def test_template_hints_name_the_allowed_values() -> None:
     template_text = build_config_template("minimal", PUBLISHER_APP_ID)
     for expected_hint in (
         "# supported today: review, security",
-        "# supported today: openai (backend: codex by default, or codex-api)",
+        "# supported today: openai",
+        "# supported today: codex (default) or codex-api",
+        "OPENAI_API_KEY: OPENAI_API_KEY",
         "# supported today: blocking",
         "# any of: pr_opened, pr_updated, manual, issue_labeled",
         "# any of: owner, member, collaborator, contributor",
@@ -261,17 +263,19 @@ def test_every_hinted_stage_value_passes_plan() -> None:
 
     stage_hints = build_stage_hints()
     stage_cases = [
-        {"type": stage_type, "gate": gate, "triggers": trigger}
+        {"type": stage_type, "gate": gate, "triggers": trigger, "backend": backend}
         for stage_type in _hinted_values(stage_hints["type"])
         for gate in _hinted_values(stage_hints["gate"])
         for trigger in _hinted_values(stage_hints["triggers"])
+        for backend in stage_hints["backend"].split(": ", 1)[1].replace(" (default)", "").split(" or ")
     ]
     provider = _hinted_values(stage_hints["provider"])[0]
     for case in stage_cases:
         config_text = (
-            f"version: 2\nprofile: custom\nplatform: {{type: github, publisher: {{app_id: {PUBLISHER_APP_ID}}}}}\n"
-            f"stages:\n  - {{id: check, type: {case['type']}, provider: {provider}, gate: {case['gate']}, "
-            f"triggers: [{case['triggers']}]}}\n"
+            f"version: 2\nprofile: custom\nplatform: {{type: github, publisher: {{app_id: {PUBLISHER_APP_ID}, "
+            "app_slug: stagr-app-bot}}\n"
+            f"stages:\n  - {{id: check, type: {case['type']}, provider: {provider}, backend: {case['backend']}, "
+            f"gate: {case['gate']}, triggers: [{case['triggers']}]}}\n"
         )
         with starter_project(config_text) as project_root:
             exit_code, _, stderr = run_cli(["plan", "--root", str(project_root)])
