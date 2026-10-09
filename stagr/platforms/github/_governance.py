@@ -23,11 +23,19 @@ Security invariants maintained by the generated workflow:
   check would land on the default-branch commit and never reach the PR; the
   published Check Run is what a branch ruleset requires. An unchanged verdict
   is not re-published, so publishing cannot re-trigger the workflow forever.
+- Woken by every stage signal: a stage Check Run that completes wakes the
+  workflow through ``check_run``. ``check_suite`` alone is not enough: GitHub
+  reports a suite as completed once, so a stage signal added to the Stagr App's
+  already completed suite would never re-evaluate the verdict. Only a Check Run
+  of the Stagr App named after a stage, on a pull request of this repository,
+  wakes it; any other event runs in a concurrency group of its own, so it
+  cannot displace a real wake-up waiting its turn.
 """
 from __future__ import annotations
 
 from stagr.core.models import RenderContext, StageResultSpec
 from stagr.platforms.github.action_pins import APP_TOKEN_ACTION_REF
+from stagr.platforms.github.stage_expressions import build_wakeup_relevance_expression
 
 # Expected schemaVersion in the StageResultSignal JSON payload stored in
 # a Check Run's output.summary field.  Must match the version emitted by
@@ -67,13 +75,21 @@ def generate_governance_workflow_yaml(
     """
     private_key_expr = "${{ secrets." + publisher_private_key_secret + " }}"
     app_token_output_expr = "${{ steps.app-token.outputs.token }}"
+    wakeup_relevance = build_wakeup_relevance_expression(
+        publisher_app_id,
+        tuple(spec.signal_selector for spec in _list_routed_specs(result_specs, render_context)),
+    )
     pr_head_sha_expr = (
         "${{ github.event.pull_request.head.sha"
+        " || github.event.check_run.head_sha"
         " || github.event.check_suite.head_sha }}"
     )
-    pr_number_expr = (
+    concurrency_key_expr = (
         "${{ github.event.pull_request.number"
-        " || github.event.check_suite.pull_requests[0].number }}"
+        f" || ({wakeup_relevance})"
+        " && (github.event.check_run.pull_requests[0].number"
+        " || github.event.check_suite.pull_requests[0].number)"
+        " || github.run_id }}"
     )
     repo_expr = "${{ github.repository }}"
 
@@ -86,6 +102,8 @@ def generate_governance_workflow_yaml(
         "on:\n"
         "  pull_request_target:\n"
         "    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]\n"
+        "  check_run:\n"
+        "    types: [completed]\n"
         "  check_suite:\n"
         "    types: [completed]\n"
         "\n"
@@ -94,18 +112,18 @@ def generate_governance_workflow_yaml(
         "  checks: read\n"
         "\n"
         "concurrency:\n"
-        f'  group: "stagr-governance-{pr_number_expr}"\n'
+        f'  group: "stagr-governance-{concurrency_key_expr}"\n'
         "  cancel-in-progress: false\n"
         "\n"
         "jobs:\n"
         "  publish-merge-verdict:\n"
-        "    # A check suite on a commit that heads no pull request has no verdict to publish.\n"
+        "    # Only a stage signal or a Stagr check suite on a pull request has a verdict to publish.\n"
         "    # The publisher is privileged, so a fork pull request never reaches it (under every\n"
-        "    # fork policy). A check suite lists only pull requests whose head branch is in this\n"
-        "    # repository, so the check_suite path already excludes forks.\n"
+        "    # fork policy). A check run or check suite lists only pull requests whose head branch\n"
+        "    # is in this repository, so those paths already exclude forks.\n"
         "    if: (github.event_name == 'pull_request_target'"
         " && github.event.pull_request.head.repo.full_name == github.repository)"
-        " || github.event.check_suite.pull_requests[0].number\n"
+        f" || {wakeup_relevance}\n"
         "    runs-on: ubuntu-latest\n"
         "    steps:\n"
         "      - name: Acquire Stagr App installation token\n"
@@ -271,6 +289,17 @@ def _build_evaluation_script(
     )
 
 
+def _list_routed_specs(
+    result_specs: tuple[StageResultSpec, ...], render_context: RenderContext
+) -> tuple[StageResultSpec, ...]:
+    """The stage specs governance evaluates: all of them, or with a fast path those on a route."""
+    fast_path = render_context.routing_policy.fast_path
+    if fast_path is None:
+        return result_specs
+    routed_stage_ids = set(fast_path.stages.fast) | set(fast_path.stages.normal)
+    return tuple(spec for spec in result_specs if spec.stage_id in routed_stage_ids)
+
+
 def _build_stage_evaluation_call_lines(
     result_specs: tuple[StageResultSpec, ...],
     render_context: RenderContext,
@@ -292,7 +321,7 @@ def _build_stage_evaluation_call_lines(
         normal_stage_ids = set(fast_path.stages.normal)
 
     lines: list[str] = []
-    for spec in result_specs:
+    for spec in _list_routed_specs(result_specs, render_context):
         is_blocking = spec.stage_id in blocking_stage_ids
         gate_argument = "blocking" if is_blocking else "non_blocking"
         fail_suffix = " || overall_pass=false" if is_blocking else " || true"
@@ -315,12 +344,10 @@ def _build_stage_evaluation_call_lines(
                 lines.append('if [[ "${current_route}" == "FAST" ]]; then\n')
                 lines.append(f'  {eval_call}\n')
                 lines.append('fi\n')
-            elif in_normal:
+            else:
                 lines.append('if [[ "${current_route}" == "NORMAL" ]]; then\n')
                 lines.append(f'  {eval_call}\n')
                 lines.append('fi\n')
-            else:
-                pass  # stage not applicable to either route; skip
     return "".join(lines)
 
 

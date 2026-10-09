@@ -235,10 +235,7 @@ class ReviewPoster:
             if line != finding.line:
                 text += f"\n\n_Reported on line {finding.line}, which this change does not touch._"
             inline_comments.append({"path": finding.path, "line": line, "side": "RIGHT", "body": text})
-        body = (
-            f"**Codex {self._config.stage_id} review** of `{pull.head_sha[:7]}`: "
-            f"{len(findings)} finding(s).\n\n{self._review_tag(pull)}"
-        )
+        body = f"**{self._describe_review(pull, len(findings))}**\n\n{self._review_tag(pull)}"
         if unattached_findings:
             body += "\n\nIn files this pull request does not change (not blocking):\n" + "\n".join(
                 f"- `{finding.path}:{finding.line}` **{finding.title}**: {finding.body}"
@@ -257,11 +254,15 @@ class ReviewPoster:
             marker_prefix, predicates = runtime.split_compound_selector(rule.selector)
             marker = {**predicates, rule.sha_field: pull.head_sha, "findings": finding_count}
             markers.append(f"<!-- {marker_prefix} {json.dumps(marker, sort_keys=True)} -->")
-        summary = (
-            f"Codex {self._config.stage_id} review of `{pull.head_sha[:7]}`: "
-            f"{finding_count} finding(s)."
+        return "\n\n".join((self._describe_review(pull, finding_count), *markers))
+
+    def _describe_review(self, pull: Any, finding_count: int) -> str:
+        """``Codex review of `abc1234` (stage `security`): 1 finding``."""
+        plural = "" if finding_count == 1 else "s"
+        return (
+            f"Codex review of `{pull.head_sha[:7]}` (stage `{self._config.stage_id}`): "
+            f"{finding_count} finding{plural}"
         )
-        return "\n\n".join((summary, *markers))
 
 
 def record_ci_gate_outputs(environment: Mapping[str, str], reviewed_pull: Any) -> None:

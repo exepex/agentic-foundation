@@ -45,6 +45,8 @@ from neutral_core_tests.github_platform_renderer_tests.test_governance_structure
     test_governance_verdict_unchanged_is_not_republished,
     test_governance_job_skips_check_suites_without_pull_request,
     test_governance_job_never_publishes_for_fork_pull_requests,
+    test_governance_wakes_on_every_stage_signal,
+    test_governance_wakeups_share_the_pull_request_concurrency_group,
 )
 
 __all__ = [
@@ -81,4 +83,6 @@ __all__ = [
     "test_governance_verdict_unchanged_is_not_republished",
     "test_governance_job_skips_check_suites_without_pull_request",
     "test_governance_job_never_publishes_for_fork_pull_requests",
+    "test_governance_wakes_on_every_stage_signal",
+    "test_governance_wakeups_share_the_pull_request_concurrency_group",
 ]
