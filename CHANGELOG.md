@@ -14,9 +14,9 @@ Fixes found while running the `codex-api` backend end to end.
   stage's Check Run completes. Before, it woke only when the Stagr App's check suite completed, which
   GitHub reports once: on a repository with no other checks, the gate kept its first verdict
   ("Merge is blocked") after every stage had passed. Only the Stagr App's own checks wake it.
-- **`codex-api` reviews report every finding at once.** Codex now runs at high reasoning effort. Left
-  unset, it reasoned at its lowest level and reported only the most visible defect, so each fix round
-  surfaced one more finding.
+- **`codex-api` reviews report every finding at once** (reasoning effort:
+  [docs/CONFIGURATION.md](docs/CONFIGURATION.md), "Codex backends"). Before, Codex reasoned at its
+  lowest level and reported only the most visible defect, so each fix round surfaced one more finding.
 - **Clearer review summaries.** The App's reviews read "Codex review of `abc1234` (stage
   `review`): 1 finding" instead of "Codex review review of `abc1234`: 1 finding(s)".
 
