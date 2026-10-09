@@ -174,7 +174,9 @@ stages:
 With `codex-api`, Codex reviews the change between the pull request's base and head commits in a
 job that holds only the API key and a checkout without credentials. Codex runs without sudo in its
 read-only sandbox and never sees the Stagr App's token. It does not read the repository's `AGENTS.md`,
-so the change under review cannot instruct its own reviewer; the review rules come from Stagr only. A finding on a file the pull request does not
+so the change under review cannot instruct its own reviewer; the review rules come from Stagr only.
+Codex reasons at high effort, so one review reports every finding it can confirm in the whole change,
+not only the most visible one. A finding on a file the pull request does not
 change has no changed line to attach to; it is listed in the review's summary and does not block.
 See **Model resolution** below for how a stage's model is chosen.
 

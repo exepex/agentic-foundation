@@ -398,6 +398,7 @@ def _build_codex_review_job(plan: ExecutionPlan, component_starter_bots: tuple[s
         "          safety-strategy: drop-sudo\n"
         f'          codex-version: "{CODEX_CLI_VERSION}"\n'
         """          codex-args: '["--config", "project_doc_max_bytes=0"]'\n"""
+        f"          effort: {params['effort']}\n"
         f"{optional_inputs}"
         "\n"
         "      - name: Hand the findings to the publish job\n"

@@ -36,7 +36,7 @@ def build_wakeup_relevance_expression(
     """Return the expression that is truthy for a Check Run / Check Suite event worth waking for."""
     upstream_names = " || ".join(
         f"github.event.check_run.name == '{name}'" for name in upstream_check_run_names
-    )
+    ) or "false"
     relevant_check_run = (
         f"github.event_name == 'check_run'"
         f" && github.event.check_run.app.id == {publisher_app_id}"

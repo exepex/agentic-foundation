@@ -4,6 +4,24 @@ What each tagged Stagr release contains. Stagr is pre-release (see `AGENTS.md`, 
 consumers"): any release may change the config contract or the commands. Install a release by its tag,
 as described in [docs/CLI.md](docs/CLI.md).
 
+## 0.7.1 — 2026-10-09
+
+Fixes found while running the `codex-api` backend end to end.
+
+### Fixed
+
+- **The merge gate re-checks when the last stage passes.** `stagr/governance` now also wakes when a
+  stage's Check Run completes. Before, it woke only when the Stagr App's check suite completed, which
+  GitHub reports once: on a repository with no other checks, the gate kept its first verdict
+  ("Merge is blocked") after every stage had passed. Only the Stagr App's own checks wake it.
+- **`codex-api` reviews report every finding at once.** Codex now runs at high reasoning effort. Left
+  unset, it reasoned at its lowest level and reported only the most visible defect, so each fix round
+  surfaced one more finding.
+- **Clearer review summaries.** The App's reviews read "Codex review of `abc1234` (stage
+  `review`): 1 finding" instead of "Codex review review of `abc1234`: 1 finding(s)".
+
+To pick these up, run `stagr apply` and commit the regenerated workflows.
+
 ## 0.7.0 — 2026-10-09
 
 Every secret name in one place: a top-level `secrets` block.

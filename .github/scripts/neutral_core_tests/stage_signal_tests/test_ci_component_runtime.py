@@ -120,6 +120,8 @@ def test_findings_are_posted_as_one_review_then_the_marker_that_completes_the_st
     assert result.action == ci_runtime.ACTION_POSTED and result.reason == "3 finding(s)"
     (review,) = fake.reviews
     assert review["commit_id"] == HEAD_SHA and review["user"]["login"] == APP_LOGIN
+    stage_id = _ci_config().stage_id
+    assert review["body"].startswith(f"**Codex review of `{HEAD_SHA[:7]}` (stage `{stage_id}`): 3 findings**")
     assert [(comment["path"], comment["line"]) for comment in review["comments"]] == [
         ("src/CommentService.java", 11), ("src/CommentService.java", 12)]
     assert "Reported on line 30" in review["comments"][1]["body"]
@@ -135,7 +137,10 @@ def test_a_clean_review_posts_only_the_marker() -> None:
     assert _post(fake, []).reason == "0 finding(s)"
     assert fake.reviews == []
     (marker_comment,) = fake.issue_comments[PULL_NUMBER]
-    assert "0 finding(s)" in marker_comment["body"] and REVIEW_MARKER_SELECTOR.split()[0] in marker_comment["body"]
+    assert marker_comment["body"].startswith(
+        f"Codex review of `{HEAD_SHA[:7]}` (stage `{_ci_config().stage_id}`): 0 findings"
+    )
+    assert REVIEW_MARKER_SELECTOR.split()[0] in marker_comment["body"]
 
 
 def test_nothing_is_posted_for_a_moved_head_or_twice_for_one_head() -> None:

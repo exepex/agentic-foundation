@@ -49,6 +49,10 @@ from stagr.core.renderers.openai_codex_backend_renderer import CODEX_REVIEW_GUID
 # The CI component a platform renderer wires for this backend.
 CODEX_REVIEW_COMPONENT = "openai-codex-review"
 
+# How hard Codex reasons. Left unset, the CLI reasons at its lowest level: one quick pass that
+# reports the most visible defect and misses the rest, so each fix round surfaces one more finding.
+REVIEW_REASONING_EFFORT = "high"
+
 # Alias of the OpenAI API key secret; the config can map it to another secret name.
 OPENAI_API_KEY_ALIAS = "OPENAI_API_KEY"
 
@@ -133,6 +137,7 @@ class OpenAICodexApiBackendRenderer:
             "credential_alias": OPENAI_API_KEY_ALIAS,
             "prompt": build_review_prompt(stage.kind),
             "output_schema": json.dumps(FINDINGS_OUTPUT_SCHEMA, sort_keys=True),
+            "effort": REVIEW_REASONING_EFFORT,
         }
         if stage.model:
             invocation_params["model"] = stage.model

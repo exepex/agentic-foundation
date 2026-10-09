@@ -122,6 +122,7 @@ def test_no_job_holds_both_the_app_token_and_the_openai_key() -> None:
     assert _step(review, "Review the change")["uses"] == CODEX_ACTION_REF.split()[0]
     assert (codex["sandbox"], codex["safety-strategy"]) == ("read-only", "drop-sudo")
     assert codex["codex-version"] == CODEX_CLI_VERSION, "the CLI is pinned like the action"
+    assert codex["effort"] == "high", "unset, the CLI reasons at its lowest level and misses findings"
     assert json.loads(codex["codex-args"]) == ["--config", "project_doc_max_bytes=0"], (
         "the change under review must not instruct its reviewer through AGENTS.md"
     )
