@@ -349,5 +349,5 @@ own.
 | `request-final-security-review.yml` | Replace the hand-written code-review-completion wait with the declared dependency (`security` starts once `review` is `PASS` for the head). Add `pull_request_target: [opened, reopened, ready_for_review, synchronize]` triggers (PR_OPENED + PR_UPDATED). |
 | `request-final-security-review.yml` | Add in-flight idempotency marker with lease (`<!-- stagr:stage:<id>:<sha>:expires:<time> -->`). Emit `StageResultSignal` as Check Run (not commit status); verify publisher App identity in governance. |
 | `auto-merge-foundation-prs.yml` | Read `StageResultSignal` Check Runs (verify publisher identity) instead of Codex summary comment rows. Routing signal also migrated to Check Run. |
-| New: provider configuration | Add secret alias → platform secret name mapping (TRUSTED_COMMENTER_TOKEN → REMEDIATION_TOKEN) to provider config. |
+| Secret names | Resolve the `TRUSTED_COMMENTER_TOKEN` alias through the top-level `secrets` block (see docs/CONFIGURATION.md, `secrets`). |
 | Verify empirically | Test whether `@codex security review` PR comment reliably updates the Codex summary Security Review row before implementing the EvidenceSpec. |
