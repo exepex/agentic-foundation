@@ -13,10 +13,8 @@ from typing import Any
 
 import yaml
 
-from stagr.core.backend_names import BACKEND_CODEX, BACKEND_CODEX_API, DEFAULT_BACKEND_BY_PROVIDER
+from stagr.core.backend_names import DEFAULT_BACKEND_BY_PROVIDER
 from stagr.core.normalize import list_built_in_stages
-from stagr.core.render_loop import TRUSTED_COMMENTER_TOKEN_ALIAS, resolve_platform_token_secret
-from stagr.core.renderers.openai_codex_api_backend_renderer import OPENAI_API_KEY_ALIAS
 
 from .config_value_hints import add_hints, build_platform_hints, build_remediation_hints, build_stage_hints
 from .profile_command import build_profile_guide
@@ -36,7 +34,7 @@ def build_config_template(profile: str, app_id: str, optional_blocks_enabled: bo
         "version: 2\n",
         f"{build_profile_guide()}profile: {profile}\n",
         _build_platform_section(app_id, setting_prefix),
-        _build_providers_section(setting_prefix),
+        _build_secrets_section(setting_prefix),
         _build_stages_section(setting_prefix),
         _build_routing_section(setting_prefix),
         _build_remediation_section(setting_prefix),
@@ -72,8 +70,6 @@ def _build_platform_section(app_id: str, setting_prefix: str) -> str:
         + "  # The Stagr GitHub App that publishes each stage's result and the merge verdict.\n"
         "  publisher:\n"
         f"    app_id: {app_id}\n"
-        + _comment(["Name of the secret holding the App's private key."], "    ")
-        + _settings(["private_key_secret: STAGR_APP_PRIVATE_KEY"], setting_prefix, "    ")
         + _comment(["The App's slug, the name in its URL; when to set it: see `publisher.app_slug`."], "    ")
         + _settings(["app_slug: your-app-slug"], setting_prefix, "    ")
         + _comment(
@@ -87,36 +83,27 @@ def _build_platform_section(app_id: str, setting_prefix: str) -> str:
         + _comment(["Pull request authors whose changes Stagr reviews and fixes automatically."], "  ")
         + _settings(add_hints(["trusted_roles: [owner, member, collaborator]"], platform_hints), setting_prefix, "  ")
         + _comment(
-            [
-                "Name of the secret holding a real user's token. Stagr posts the review requests",
-                "(and resolves finished review threads) as that user.",
-            ],
-            "  ",
-        )
-        + _settings(["auth:", "  token_secret: REMEDIATION_TOKEN"], setting_prefix, "  ")
-        + _comment(
             ["Label that hands a pull request to a human when the automated fix rounds run out."], "  "
         )
         + _settings(["labels:", "  human_merge: human-merge"], setting_prefix, "  ")
     )
 
 
-def _build_providers_section(setting_prefix: str) -> str:
+def _build_secrets_section(setting_prefix: str) -> str:
     return _comment(
         [
-            "Secret names per provider: each line maps a credential a backend uses to the name of",
-            "your repository secret. Shown with the default names; change one only when your secret",
-            "is named differently. See `providers`.",
+            "Secret names: the repository secret that holds each credential Stagr uses, never its",
+            "value. Shown with the default names; set one only when your secret is named",
+            "differently. Which ones you need: see `secrets`.",
         ]
     ) + _settings(
         [
-            "providers:",
-            "  openai:",
-            "    secrets:",
-            # Built from the aliases and default names the renderers use, so they cannot drift.
-            f"      {TRUSTED_COMMENTER_TOKEN_ALIAS}: {resolve_platform_token_secret({})}"
-            f"  # the `{BACKEND_CODEX}` backend's review requests",
-            f"      {OPENAI_API_KEY_ALIAS}: {OPENAI_API_KEY_ALIAS}  # the `{BACKEND_CODEX_API}` backend's OpenAI API key",
+            "secrets:",
+            # Literal text (a test checks it against secret_names.DEFAULT_SECRET_NAMES).
+            "  app_private_key: STAGR_APP_PRIVATE_KEY  # the Stagr GitHub App's private key",
+            "  platform_token: REMEDIATION_TOKEN       # a real user's token (review requests, threads)",
+            "  openai_api_key: OPENAI_API_KEY          # the `codex-api` backend",
+            "  anthropic_api_key: ANTHROPIC_API_KEY    # the `remediation` agent",
         ],
         setting_prefix,
     )
@@ -186,7 +173,7 @@ def _build_remediation_section(setting_prefix: str) -> str:
         ]
     ) + _settings(
         add_hints(
-            ["remediation:", "  provider: anthropic", "  max_rounds: 5", "  api_key_secret: ANTHROPIC_API_KEY"],
+            ["remediation:", "  provider: anthropic", "  max_rounds: 5"],
             build_remediation_hints(),
         ),
         setting_prefix,

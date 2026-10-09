@@ -49,15 +49,27 @@ def test_invalid_remediation_settings_are_rejected() -> None:
         ("remediation:\n  provider: anthropic\n  max_rounds: 11\n", "a round limit above 10"),
         ("remediation:\n  provider: openai\n", "an unknown provider"),
         ("remediation:\n  max_rounds: 5\n", "a missing provider"),
-        ("remediation:\n  provider: anthropic\n  api_key_secret: sk-ant-not-a-name\n", "a key pasted as the secret name"),
+        ("remediation:\n  provider: anthropic\nsecrets:\n  anthropic_api_key: sk-ant-not-a-name\n", "a key pasted as the secret name"),
     ):
         with starter_project(build_minimal_config(remediation_block)) as project_root:
             exit_code, _, stderr = run_cli(["plan", "--root", str(project_root)])
             check(exit_code == 1 and "sk-ant" not in stderr, f"remediation: rejects {description}")
 
 
+def test_the_agent_key_secret_is_named_in_the_secrets_block() -> None:
+    config_text = build_minimal_config("remediation:\n  provider: anthropic\nsecrets:\n  anthropic_api_key: TEAM_CLAUDE_KEY\n")
+    with starter_project(config_text) as project_root:
+        run_cli(["apply", "--root", str(project_root)])
+        workflow_text = (project_root / REMEDIATION_WORKFLOW).read_text(encoding="utf-8")
+        check(
+            "secrets.TEAM_CLAUDE_KEY" in workflow_text and "secrets.ANTHROPIC_API_KEY" not in workflow_text,
+            "remediation: secrets.anthropic_api_key names the agent's key secret",
+        )
+
+
 REMEDIATION_TESTS = (
     test_minimal_profile_with_remediation_plans_the_fix_workflow,
     test_without_remediation_no_fix_workflow_is_planned,
     test_invalid_remediation_settings_are_rejected,
+    test_the_agent_key_secret_is_named_in_the_secrets_block,
 )

@@ -18,26 +18,23 @@ The toolkit never creates credentials.
 
 ## 2. Credentials — names, type, and scope
 
-Set these as **repository (or environment) secrets** unless noted otherwise. Names are the defaults;
-you can rename them in the config (see below).
+Set these as **repository (or environment) secrets** unless noted otherwise. Each one's name, and
+how to change it, is set in [`secrets`](#secrets-optional--secret-names) under the setting shown.
 
-| Purpose | Name | Type | Required when | Scope / notes |
+| Purpose | `secrets` setting | Type | Required when | Scope / notes |
 |---|---|---|---|---|
-| Codex comment-trigger, PR publication, resolving outdated review threads | `REMEDIATION_TOKEN` | **Fine-grained PAT (real user)** | a stage uses the `codex` backend, or any review stage (finished review threads are resolved with it) | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
-| Codex API key | `OPENAI_API_KEY` | OpenAI API key | a stage uses the `codex-api` backend | Only the job that runs Codex receives it. Billed per use to the key's OpenAI project; set a spending limit there. |
-| Remediation agent API key | `ANTHROPIC_API_KEY` | Anthropic API key | the config has a [`remediation`](#remediation-optional--automated-fixes) section | Also install the **Claude GitHub App** on the repository: the agent pushes its fixes as that App, which starts the next review. |
-| Stagr GitHub App private key | `STAGR_APP_PRIVATE_KEY` | GitHub App private key | you configure `platform.publisher` | See [Publisher](#publisher-stagr-github-app). |
-| GitHub API (PR reads) | `GITHUB_TOKEN` | Provided by Actions | always | No action needed; each generated workflow sets its own least-privilege permissions. |
+| Codex comment-trigger, PR publication, resolving outdated review threads | `platform_token` | **Fine-grained PAT (real user)** | a stage uses the `codex` backend, or any review stage (finished review threads are resolved with it) | Least scope: **Contents: R/W** + **Pull requests: R/W**. **No** admin/merge. Must be a real, attributable user — bot/App tokens do not reliably trigger `@codex`. |
+| Codex API key | `openai_api_key` | OpenAI API key | a stage uses the `codex-api` backend | Only the job that runs Codex receives it. Billed per use to the key's OpenAI project; set a spending limit there. |
+| Remediation agent API key | `anthropic_api_key` | Anthropic API key | the config has a [`remediation`](#remediation-optional--automated-fixes) section | Also install the **Claude GitHub App** on the repository: the agent pushes its fixes as that App, which starts the next review. |
+| Stagr GitHub App private key | `app_private_key` | GitHub App private key | you configure `platform.publisher` | See [Publisher](#publisher-stagr-github-app). |
+| GitHub API (PR reads) | none (`GITHUB_TOKEN`) | Provided by Actions | always | No action needed; each generated workflow sets its own least-privilege permissions. |
 
 The `codex` backend needs no model API key: the Codex GitHub App supplies its own model.
 
 **Why a real-user PAT:**
-- **`REMEDIATION_TOKEN`** must be a **real-user PAT** because Codex acts on `@codex` commands
+- The **`platform_token`** secret must be a **real-user PAT** because Codex acts on `@codex` commands
   only from an attributable user. Grant it the minimum (Contents + Pull requests, R/W) — it needs no
   permission to merge or administer.
-
-> Secret names are configurable. The names above are defaults; override them per provider with
-> `providers.<provider>.secrets.<alias>` and per platform with `platform.auth.token_secret`.
 
 ---
 
@@ -76,14 +73,9 @@ platform: { type: github, publisher: { app_id: 123456 } }
 | `type` | `github`. Selects the renderer. |
 | `same_repo_only` | `true` = ignore fork PR/MR heads. Keep `true` unless you accept fork contributions (widens the threat model). Default `true`. |
 | `trusted_roles` | Normalized permission levels allowed to drive agentic changes (`owner`, `member`, `collaborator`, `contributor`); the renderer maps them to the platform's own roles. Default `owner`, `member`, `collaborator`. |
-| `auth.token_secret` | **Name** of the secret holding the platform API token. Never the value. |
 | `publisher.app_id` | The numeric ID of the **Stagr GitHub App** that publishes Stagr's own Check Runs. A positive whole number (quoted digits also work). It is **not a secret**: it is written as-is into the generated workflows. No default. The schema accepts a config without it, but **`stagr plan` and `stagr apply` require it**: the generated workflows publish their check runs as this App. |
-| `publisher.private_key_secret` | Optional, used with `publisher`. The **name** of the repository secret that holds the App's private key. Default `STAGR_APP_PRIVATE_KEY`. Never the key itself. |
 | `publisher.app_slug` | The App's slug: the lowercase name in its URL, `github.com/apps/<slug>`. Required only when a stage uses the `codex-api` backend, which posts its reviews as the App. No default. |
 | `labels.human_merge` | A change-request with this label is **never** merged automatically (a human keeps merge authority). Default `human-merge`. |
-
-A secret name is letters, digits and underscores, not starting with a digit, and not starting with
-`GITHUB_` (GitHub reserves that prefix). The same rule applies to every secret-name field below.
 
 ### `defaults` (optional — fallbacks for stages)
 | Field | Meaning |
@@ -91,47 +83,40 @@ A secret name is letters, digits and underscores, not starting with a digit, and
 | `provider` | Default provider id for stages that omit one. If a stage has no provider and there is no default, validation fails. |
 | `models.<provider>.default` | Default model ID for that provider when a stage does not set its own. `<provider>` is any provider id. |
 
-### `providers` (optional — secret names per provider)
-| Field | Meaning |
+### `secrets` (optional — secret names)
+The one place where the config names the repository secrets Stagr uses. Each setting holds a secret
+**name**, never its value, and has a default; set one only when your secret is named differently.
+Which credential each one is for, and when it is required: [section 2](#2-credentials--names-type-and-scope).
+
+| Field | Default |
 |---|---|
-| `providers.<provider>.secrets.<alias>` | Maps a semantic alias used by the backend (e.g. `TRUSTED_COMMENTER_TOKEN`) to the actual repository secret name. Never the secret value. See **Secret alias resolution** below. |
+| `app_private_key` | `STAGR_APP_PRIVATE_KEY` |
+| `platform_token` | `REMEDIATION_TOKEN` |
+| `openai_api_key` | `OPENAI_API_KEY` |
+| `anthropic_api_key` | `ANTHROPIC_API_KEY` |
 
-#### Secret alias resolution
-
-When the toolkit writes `env:` entries into generated workflow YAML it resolves each backend-declared
-alias to a concrete CI secret name using the following precedence (first match wins):
-
-1. **Explicit map** — `providers.<provider>.secrets.<alias>` in your config.
-2. **Established default** — `TRUSTED_COMMENTER_TOKEN` → `platform.auth.token_secret` if set,
-   otherwise `REMEDIATION_TOKEN`.
-3. **Convention** — any other alias is used as the secret name directly (alias == secret name).
-
-Example — use a custom PAT for every provider, or only for Codex:
+A secret name is letters, digits and underscores, not starting with a digit, and not starting with
+`GITHUB_` (GitHub reserves that prefix). A value that is not a name (for example a pasted key) is
+rejected, and the rejected value is never echoed.
 
 ```yaml
-platform:
-  auth:
-    token_secret: MY_GITHUB_PAT              # overrides the REMEDIATION_TOKEN default
-providers:
-  openai:
-    secrets:
-      TRUSTED_COMMENTER_TOKEN: MY_CODEX_PAT  # wins over platform.auth.token_secret for openai
+secrets:
+  platform_token: MY_GITHUB_PAT     # the other settings keep their defaults
 ```
 
 #### Publisher (Stagr GitHub App)
 Stagr publishes its own Check Runs as a GitHub App, not with a personal token. You create the App
-yourself and store its private key as a repository secret; the config only names them:
+yourself and store its private key as a repository secret (its name: [`secrets`](#secrets-optional--secret-names)):
 
 ```yaml
 platform:
   publisher:
     app_id: 123456                          # the App's numeric ID (not a secret)
-    private_key_secret: STAGR_APP_PRIVATE_KEY   # NAME of the secret holding the App private key
     app_slug: my-stagr-app                  # when to set it: `publisher.app_slug` above
 ```
 
 Steps for the operator: create the GitHub App, install it on the repository, save its private key as a
-repository secret with the name you put in `private_key_secret`, and set `app_id`.
+repository secret, and set `app_id`.
 
 Give the App these repository permissions (without them the generated workflows fail with
 authorization errors):
@@ -143,9 +128,7 @@ authorization errors):
 | Issues | Read (Read and write with the `codex-api` backend) | Read pull request comments, where review backends post their results; with `codex-api`, post each review's completion comment |
 | Metadata | Read | Granted automatically |
 
-A value that is not a valid secret name (for example a pasted key) is rejected when the config is
-validated, and the rejected value is never echoed. The private key gives access wherever the App is
-installed, so guard it and rotate it if it leaks.
+The private key gives access wherever the App is installed, so guard it and rotate it if it leaks.
 
 ### `stages` (optional — the agent graph)
 Omit to use the profile's stages. Anything you list is **merged onto** the profile (a stage with the
@@ -223,14 +206,14 @@ finding, fixes the ones that are real and declines the rest with its reasons.
 remediation:
   provider: anthropic        # Claude Code Action, the only provider today
   max_rounds: 5              # optional, 1 to 10
-  api_key_secret: ANTHROPIC_API_KEY   # optional, NAME of the secret
 ```
 
 | Field | Meaning |
 |---|---|
 | `provider` | The fixing agent. `anthropic`: Claude Code Action. Required. |
 | `max_rounds` | Automated fix rounds per pull request. Default `5`. |
-| `api_key_secret` | NAME of the secret holding the provider API key. Default `ANTHROPIC_API_KEY`. |
+
+The agent's API key secret is named in [`secrets`](#secrets-optional--secret-names).
 
 How a round works:
 

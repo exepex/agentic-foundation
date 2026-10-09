@@ -109,8 +109,8 @@ SecretRef {
 1. The BackendRenderer declares which `alias` names a stage requires (e.g.,
    `PROVIDER_API_KEY`, `TRUSTED_COMMENTER_TOKEN`).
 2. The operator configures the mapping from alias to actual platform secret name in
-   provider configuration (outside the stage declaration, in a provider config block —
-   or via convention: alias = platform secret name when no override is given).
+   the config's `secrets` block (outside the stage declaration), or its default, or by
+   convention: alias = platform secret name when the alias has no setting.
 3. The PlatformRenderer renders the actual secret reference into the generated artifact.
 
 ### Why this matters
@@ -118,29 +118,25 @@ SecretRef {
 The current implementation hardcodes `REMEDIATION_TOKEN` as the secret name in the
 workflow scripts. This leaks a platform-specific secret name into the neutral design.
 Under the correct model, `REMEDIATION_TOKEN` is the platform secret name for the alias
-`TRUSTED_COMMENTER_TOKEN` — that mapping is provider configuration, not part of the
-neutral stage declaration.
+`TRUSTED_COMMENTER_TOKEN` — that mapping is secret configuration (`secrets.platform_token`),
+not part of the neutral stage declaration.
 
 ---
 
-## Provider configuration block (V1 sketch)
+## Secret names in the config
 
 ```yaml
 # .agentic/config.yml
-providers:
-  openai:
-    secrets:
-      PROVIDER_API_KEY: OPENAI_API_KEY           # alias → platform secret name
-      TRUSTED_COMMENTER_TOKEN: REMEDIATION_TOKEN  # alias → platform secret name
+secrets:
+  platform_token: REMEDIATION_TOKEN   # names the secret for alias TRUSTED_COMMENTER_TOKEN
+  openai_api_key: OPENAI_API_KEY      # names the secret for alias OPENAI_API_KEY
 ```
 
-This block is optional in V1 when convention-based resolution is sufficient (alias ==
-platform secret name). It becomes required when the platform secret names differ from
-the aliases the backend declares.
-
-> **V1 decision:** Provider configuration lives in `config.yml` under the `providers:`
-> block. Keeping everything in one file simplifies the operator experience and the Stagr
-> CLI's config loading path.
+Every credential's secret name lives in the one top-level `secrets` block, keyed by what the
+credential is for. `stagr/core/secret_names.py` maps each backend alias to its setting
+(`SECRET_SETTING_BY_ALIAS`) and holds each setting's default; an alias with no setting is its own
+secret name. The block is optional: it is needed only when a secret is named differently from the
+default.
 
 ---
 
@@ -151,5 +147,5 @@ Static validation (see `07-validation.md`) must verify:
 - A registered BackendRenderer exists for every `(provider, backend)` pair in the config
 - If `model` is specified, the BackendRenderer accepts that model value (or validation
   is deferred to doctor/apply when the backend requires a live API call to validate)
-- All aliases declared by the BackendRenderer for a stage are present in provider
-  configuration or can be resolved by convention
+- All aliases declared by the BackendRenderer for a stage resolve through the `secrets` block
+  or by convention

@@ -60,8 +60,8 @@ def test_schema_rejects_keys_deleted_from_stagr_namespaces() -> None:
         (("routing",), {"fast_path": {"max_lines": 10}}, "'max_lines' was unexpected"),
         (("routing",), {"fast_path": {"exclude": ["AGENTS.md"]}}, "'exclude' was unexpected"),
         (("defaults",), {"models": {"openai": {"tiers": {"complex": "gpt-x"}}}}, "'tiers' was unexpected"),
-        (("providers",), {"openai": {"base_url": "https://example.test"}}, "'base_url' was unexpected"),
-        (("providers",), {"openai": {"extra_headers_secret": "H"}}, "'extra_headers_secret' was unexpected"),
+        (("secrets",), {"base_url": "https://example.test"}, "'base_url' was unexpected"),
+        (("secrets",), {"extra_headers_secret": "H"}, "'extra_headers_secret' was unexpected"),
     ]
     for path, value, expected_fragment in deleted_keys:
         _expect_schema_error(_config_with(path, value), expected_fragment)
@@ -148,11 +148,8 @@ _NOT_SECRET_NAMES = ["${{ secrets.OTHER }}", "has space", "1STARTS_WITH_DIGIT", 
 def test_secret_name_fields_reject_anything_that_is_not_a_name() -> None:
     """Secret names are placed into workflows as ``secrets.<name>``, so every such field is pattern-checked."""
     for bad_name in _NOT_SECRET_NAMES:
-        _expect_schema_error(_config_with(("platform", "auth"), {"token_secret": bad_name}), "token_secret")
-        _expect_schema_error(
-            _config_with(("providers",), {"openai": {"secrets": {"PROVIDER_API_KEY": bad_name}}}),
-            "PROVIDER_API_KEY",
-        )
+        for setting in ("app_private_key", "platform_token", "openai_api_key", "anthropic_api_key"):
+            _expect_schema_error(_config_with(("secrets",), {setting: bad_name}), setting)
 
 
 def test_pasted_key_in_a_secrets_map_is_not_echoed() -> None:
@@ -160,7 +157,7 @@ def test_pasted_key_in_a_secrets_map_is_not_echoed() -> None:
     from stagr.core.errors import ConfigSchemaError
 
     pasted_key = "-----BEGIN RSA PRIVATE KEY-----\nMIIEsupersecretkeymaterial\n-----END RSA PRIVATE KEY-----\n"
-    config = _config_with(("providers",), {"openai": {"secrets": {"PROVIDER_API_KEY": pasted_key}}})
+    config = _config_with(("secrets",), {"openai_api_key": pasted_key})
     try:
         validate_config_schema(config)
     except ConfigSchemaError as error:
@@ -168,6 +165,23 @@ def test_pasted_key_in_a_secrets_map_is_not_echoed() -> None:
         assert "value withheld" in str(error), str(error)
         return
     raise AssertionError("expected the pasted key to be rejected")
+
+
+def test_secret_defaults_match_in_schema_and_docs() -> None:
+    """The schema's and CONFIGURATION.md's secret defaults are the ones the code uses."""
+    import json
+
+    from stagr.core.secret_names import DEFAULT_SECRET_NAMES
+
+    schema = json.loads((REPO_ROOT / "stagr" / "config.schema.json").read_text(encoding="utf-8"))
+    schema_defaults = {
+        setting: definition["default"]
+        for setting, definition in schema["properties"]["secrets"]["properties"].items()
+    }
+    assert schema_defaults == DEFAULT_SECRET_NAMES, schema_defaults
+    docs_text = (REPO_ROOT / "docs" / "CONFIGURATION.md").read_text(encoding="utf-8")
+    for setting, default_name in DEFAULT_SECRET_NAMES.items():
+        assert f"| `{setting}` | `{default_name}` |" in docs_text, f"docs table is missing {setting}"
 
 
 def test_provider_without_default_backend_needs_an_explicit_backend() -> None:
@@ -241,6 +255,7 @@ CONFIG_SCHEMA_TESTS = [
     test_schema_requires_a_stage_type,
     test_secret_name_fields_reject_anything_that_is_not_a_name,
     test_pasted_key_in_a_secrets_map_is_not_echoed,
+    test_secret_defaults_match_in_schema_and_docs,
     test_provider_without_default_backend_needs_an_explicit_backend,
     test_omitted_profile_means_the_standard_profile,
     test_front_door_reports_a_missing_skill_file,

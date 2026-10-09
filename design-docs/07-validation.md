@@ -43,7 +43,7 @@ All required fields are present; all field values are recognized enum members or
 strings. Unrecognized top-level keys are silently ignored — operators may co-locate
 non-Stagr configuration (e.g., `deploy:`) alongside the Stagr contract in
 `.agentic/config.yml`. Stagr validates only its own recognized key namespace: `version`,
-`profile`, `platform`, `defaults`, `providers`, `stages`, `routing`, `merge` and, once
+`profile`, `platform`, `secrets`, `defaults`, `stages`, `routing`, `remediation`, `merge` and, once
 `09-check-stages.md` is built, `build`. Any other top-level key is not read, not validated,
 and does not produce an error or warning. Unknown keys inside a Stagr key are errors. See `01-neutral-config-contract.md` for the full list of recognized keys.
 
@@ -103,13 +103,9 @@ unnecessary edits when toggling `enabled`.
 
 ### V-S12 — Secret alias resolution
 
-Holds by construction, so it has no separate check: the Phase 1 resolver falls back to "the alias
-is the secret name" when no mapping exists (`stagr/core/render_loop.py`), so an alias is never
-unresolvable.
-
-All `SecretRef.alias` values declared by the BackendRenderer for each stage are
-resolvable: either an explicit mapping exists in provider configuration, or the alias
-equals the platform secret name by convention. Static resolution means the alias is
+Holds by construction, so it has no separate check: the Phase 1 resolver
+(`stagr/core/secret_names.py`) resolves an alias through its `secrets` setting or that setting's
+default, and otherwise uses the alias itself as the secret name, so an alias is never unresolvable. Static resolution means the alias is
 registered; run-time presence is checked by `stagr doctor`.
 
 ### V-S14 — Trusted-role value validation

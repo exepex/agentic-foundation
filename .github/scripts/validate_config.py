@@ -140,23 +140,21 @@ def main() -> int:
         "minimal config",
     )
 
-    # 3b. platform.publisher example: valid block validates; a credential-looking secret is rejected.
+    # 3b. publisher and secrets example: a valid block validates; a credential-looking secret is rejected.
     publisher_example = {
         "version": 2,
         "profile": "standard",
-        "platform": {
-            "type": "github",
-            "publisher": {"app_id": 123456, "private_key_secret": "STAGR_APP_PRIVATE_KEY"},
-        },
+        "platform": {"type": "github", "publisher": {"app_id": 123456}},
+        "secrets": {"app_private_key": "STAGR_APP_PRIVATE_KEY"},
         "defaults": {"provider": "anthropic", "models": {"anthropic": {"default": "c"}}},
     }
     validate(publisher_example, "publisher example config")
     literal_key_example = json.loads(json.dumps(publisher_example))
-    literal_key_example["platform"]["publisher"]["private_key_secret"] = "-----BEGIN RSA PRIVATE KEY-----"
+    literal_key_example["secrets"]["app_private_key"] = "-----BEGIN RSA PRIVATE KEY-----"
     if validator.is_valid(literal_key_example):
-        fail("platform.publisher.private_key_secret accepted a literal key value; it must be a secret NAME")
+        fail("secrets.app_private_key accepted a literal key value; it must be a secret NAME")
     else:
-        print("OK  platform.publisher.private_key_secret rejects a literal key value")
+        print("OK  secrets.app_private_key rejects a literal key value")
 
     # 4. Skills.
     for skill_md in sorted((ROOT / "stagr" / "templates" / "skills").glob("*/SKILL.md")):

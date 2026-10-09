@@ -92,8 +92,8 @@ def test_phase1_empty_stages_returns_empty_list() -> None:
     )
 
 
-def test_phase1_explicit_secrets_map_takes_precedence_over_platform_token_secret() -> None:
-    """An explicit secrets map entry beats platform.auth.token_secret for TRUSTED_COMMENTER_TOKEN."""
+def test_phase1_api_key_alias_resolves_through_the_secrets_block() -> None:
+    """OPENAI_API_KEY resolves to `secrets.openai_api_key`, and to its default without the setting."""
     from stagr.core.render_loop import run_phase1
     from stagr.core.backend_renderer_registry import BackendRendererRegistry
 
@@ -101,7 +101,7 @@ def test_phase1_explicit_secrets_map_takes_precedence_over_platform_token_secret
     render_context = build_minimal_render_context([stage])
 
     plan_with_commenter_token = build_execution_plan(
-        "stage-precedence", secret_aliases=("TRUSTED_COMMENTER_TOKEN",)
+        "stage-precedence", secret_aliases=("OPENAI_API_KEY",)
     )
 
     class _BackendRendererExplicit:
@@ -121,30 +121,21 @@ def test_phase1_explicit_secrets_map_takes_precedence_over_platform_token_secret
             received_plans.append(plan)
             return build_stage_render(stage_arg.id)
 
-    # Both explicit secrets map and platform.auth.token_secret present — explicit map must win.
-    provider_config = {
-        "platform": {"auth": {"token_secret": "FALLBACK_TOKEN"}},
-        "providers": {
-            "testprovider": {
-                "secrets": {
-                    "TRUSTED_COMMENTER_TOKEN": "EXPLICIT_TOKEN",
-                },
-            },
-        },
-    }
-
-    run_phase1(render_context, registry, _CapturingPlatformRenderer(), provider_config)
-
-    assert received_plans, "PlatformRenderer.render_stage was not called"
-    resolved_plan = received_plans[0]
-    env_names = {ref.alias: ref.env_name for ref in resolved_plan.required_secrets}
-    assert env_names == {"TRUSTED_COMMENTER_TOKEN": "EXPLICIT_TOKEN"}, (
-        f"Explicit secrets map must take precedence over platform.auth.token_secret; got {env_names!r}"
-    )
+    for provider_config, expected_name in (
+        ({"secrets": {"openai_api_key": "TEAM_OPENAI_KEY"}}, "TEAM_OPENAI_KEY"),
+        ({}, "OPENAI_API_KEY"),
+    ):
+        received_plans.clear()
+        run_phase1(render_context, registry, _CapturingPlatformRenderer(), provider_config)
+        assert received_plans, "PlatformRenderer.render_stage was not called"
+        env_names = {ref.alias: ref.env_name for ref in received_plans[0].required_secrets}
+        assert env_names == {"OPENAI_API_KEY": expected_name}, (
+            f"OPENAI_API_KEY must resolve through secrets.openai_api_key; got {env_names!r}"
+        )
 
 
 def test_phase1_multiple_secrets_all_resolved() -> None:
-    """All SecretRef entries in the plan are resolved when the mapping covers all aliases."""
+    """Every SecretRef is resolved; an alias with no `secrets` setting is its own secret name."""
     from stagr.core.render_loop import run_phase1
     from stagr.core.backend_renderer_registry import BackendRendererRegistry
 
@@ -173,23 +164,14 @@ def test_phase1_multiple_secrets_all_resolved() -> None:
             received_plans.append(plan)
             return build_stage_render(stage_arg.id)
 
-    provider_config = {
-        "providers": {
-            "testprovider": {
-                "secrets": {
-                    "FIRST_KEY": "FIRST_ENV_VAR",
-                    "SECOND_KEY": "SECOND_ENV_VAR",
-                },
-            },
-        },
-    }
+    provider_config = {"secrets": {"platform_token": "UNRELATED_TOKEN"}}
 
     run_phase1(render_context, registry, _CapturingPlatformRenderer(), provider_config)
 
     assert received_plans, "PlatformRenderer.render_stage was not called"
     resolved_plan = received_plans[0]
     env_names = {ref.alias: ref.env_name for ref in resolved_plan.required_secrets}
-    assert env_names == {"FIRST_KEY": "FIRST_ENV_VAR", "SECOND_KEY": "SECOND_ENV_VAR"}, (
+    assert env_names == {"FIRST_KEY": "FIRST_KEY", "SECOND_KEY": "SECOND_KEY"}, (
         f"Unexpected resolved env_names mapping: {env_names!r}"
     )
 

@@ -9,7 +9,7 @@ from .harness import CONFIG_FILE_PATH, check, run_cli, starter_project
 from .plan_apply_tests import parse_entries
 
 PUBLISHER_APP_ID = "5239405"
-OPTIONAL_BLOCKS = ("providers", "stages", "routing", "remediation")
+OPTIONAL_BLOCKS = ("secrets", "stages", "routing", "remediation")
 
 
 def test_template_turns_on_only_the_required_keys_and_the_profile() -> None:
@@ -29,7 +29,7 @@ def test_template_offers_every_optional_block_commented_out() -> None:
     template_text = build_config_template("standard", PUBLISHER_APP_ID)
     for block in OPTIONAL_BLOCKS:
         check(f"\n#{block}:\n" in template_text, f"template: offers `{block}` commented out")
-    for platform_key in ("private_key_secret", "app_slug", "same_repo_only", "trusted_roles", "auth", "labels"):
+    for platform_key in ("app_slug", "same_repo_only", "trusted_roles", "labels"):
         check(f"  #{platform_key}:" in template_text, f"template: offers platform `{platform_key}` commented out")
     check("#   security  on in: standard" in template_text, "template: the stage catalog names each stage's profiles")
 
@@ -241,7 +241,6 @@ def test_template_hints_name_the_allowed_values() -> None:
         "# supported today: review, security",
         "# supported today: openai",
         "# supported today: codex (default) or codex-api",
-        "OPENAI_API_KEY: OPENAI_API_KEY",
         "# supported today: blocking",
         "# any of: pr_opened, pr_updated, manual, issue_labeled",
         "# any of: owner, member, collaborator, contributor",
@@ -282,7 +281,25 @@ def test_every_hinted_stage_value_passes_plan() -> None:
             check(exit_code == 0, f"template: the hinted stage values {case} pass `stagr plan` ({stderr.strip()})")
 
 
+def test_template_secrets_block_names_every_setting_with_its_default() -> None:
+    """The template's `secrets` lines are text; this keeps them equal to the one home of the defaults."""
+    from stagr.core.secret_names import DEFAULT_SECRET_NAMES
+
+    template_text = build_config_template("minimal", PUBLISHER_APP_ID)
+    enabled = yaml.safe_load(build_config_template("minimal", PUBLISHER_APP_ID, optional_blocks_enabled=True))
+    check(
+        enabled["secrets"] == DEFAULT_SECRET_NAMES
+        and all(f"#  {setting}: {name}" in template_text for setting, name in DEFAULT_SECRET_NAMES.items()),
+        "template: the secrets block names every setting with its default secret name",
+    )
+    check(
+        not any(field in template_text for field in ("private_key_secret", "token_secret", "api_key_secret", "providers:")),
+        "template: no secret name is set anywhere but the secrets block",
+    )
+
+
 CONFIG_TEMPLATE_TESTS = CONFIG_TEMPLATE_TESTS + (
+    test_template_secrets_block_names_every_setting_with_its_default,
     test_template_hints_name_the_allowed_values,
     test_every_hinted_stage_value_passes_plan,
 )

@@ -27,15 +27,8 @@
           "default": ["owner", "member", "collaborator"],
           "description": "Normalized author-permission levels allowed to drive agentic changes; the renderer maps them to the platform's own roles."
         },
-        "auth": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "token_secret": { "$ref": "#/$defs/secretName", "description": "NAME of the secret holding the platform API token. Never the value." }
-          }
-        },
         "publisher": {
-          "description": "OPTIONAL. The Stagr GitHub App that publishes Stagr-owned platform signals (Check Runs). The operator creates the App and stores its private key as a repository secret; only the secret NAME lives here, never the key.",
+          "description": "OPTIONAL. The Stagr GitHub App that publishes Stagr-owned platform signals (Check Runs). The operator creates the App and stores its private key as a repository secret, named in `secrets.app_private_key`.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -45,11 +38,6 @@
                 { "type": "integer", "minimum": 1 },
                 { "type": "string", "pattern": "^[1-9][0-9]*$" }
               ]
-            },
-            "private_key_secret": {
-              "$ref": "#/$defs/secretName",
-              "description": "NAME of the repository secret that holds the App private key. Never the key itself. Default: STAGR_APP_PRIVATE_KEY.",
-              "default": "STAGR_APP_PRIVATE_KEY"
             },
             "app_slug": {
               "type": "string",
@@ -82,10 +70,16 @@
       }
     },
 
-    "providers": {
-      "description": "Per-provider secret settings, keyed by provider id (open map). Only the NAMES of secrets live here, never a value.",
+    "secrets": {
+      "description": "OPTIONAL. The NAME of the repository secret holding each credential Stagr uses, never a value. Every entry has a default; set one only when your secret is named differently. When each one is needed: docs/CONFIGURATION.md, section 2.",
       "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/providerSecrets" }
+      "additionalProperties": false,
+      "properties": {
+        "app_private_key": { "$ref": "#/$defs/secretName", "default": "STAGR_APP_PRIVATE_KEY", "description": "The Stagr GitHub App's private key." },
+        "platform_token": { "$ref": "#/$defs/secretName", "default": "REMEDIATION_TOKEN", "description": "A real user's token, used to post review requests and resolve review threads." },
+        "openai_api_key": { "$ref": "#/$defs/secretName", "default": "OPENAI_API_KEY", "description": "The OpenAI API key of the `codex-api` backend." },
+        "anthropic_api_key": { "$ref": "#/$defs/secretName", "default": "ANTHROPIC_API_KEY", "description": "The Anthropic API key of the `remediation` agent." }
+      }
     },
 
     "stages": {
@@ -137,11 +131,6 @@
           "maximum": 10,
           "default": 5,
           "description": "Automated fix rounds per pull request. When reached with findings still open, the pull request is handed to a human. Default: 5."
-        },
-        "api_key_secret": {
-          "$ref": "#/$defs/secretName",
-          "default": "ANTHROPIC_API_KEY",
-          "description": "NAME of the repository secret holding the provider API key. Never the key. Default: ANTHROPIC_API_KEY."
         }
       }
     },
@@ -197,18 +186,6 @@
       "additionalProperties": false,
       "properties": {
         "default": { "type": "string", "minLength": 1 }
-      }
-    },
-    "providerSecrets": {
-      "description": "Secret names for one provider. Contains NO secret values — only the names of secrets.",
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "secrets": {
-          "description": "Secret alias map: keys are SecretRef.alias names used by this provider's BackendRenderer; values are the NAMES of the CI secrets that hold them (rendered as `secrets.<name>`). Never the secret values themselves. Example: {\"TRUSTED_COMMENTER_TOKEN\": \"REMEDIATION_TOKEN\"}.",
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/secretName" }
-        }
       }
     },
     "secretName": {
